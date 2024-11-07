@@ -20,9 +20,10 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'fase_1 = hermit_offboard.fase_1:main'
-            'line_trajectory = hermit_offboard.line_trajectory:main'
-            'takeoff_and_landing = hermit_offboard.takeoff_and_landing:main'
+            'fase_1 = hermit_offboard.fase_1:main',
+            'line_trajectory = hermit_offboard.line_trajectory:main',
+            'drone_controller = hermit_offboard.drone_controller:main',
+            'takeoff_and_landing = hermit_offboard.takeoff_and_landing:main',
         ],
     },
 )

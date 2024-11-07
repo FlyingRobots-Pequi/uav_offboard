@@ -43,7 +43,7 @@ class OffboardControl(Node):
         self.nav_state = VehicleStatus.NAVIGATION_STATE_MAX
         self.offboard_setpoint_counter_ = 0
         self.current_altitude = 0.0  # Track the current altitude
-        self.max_altitude = -1.0  # Target altitude for takeoff (-1m in NED)
+        self.max_altitude = -2.0  # Target altitude for takeoff (-1m in NED)
         self.landing_altitude = -0.1  # Stop landing when altitude is near 0 (ground level)
  
     def vehicle_local_position_callback(self, msg):
@@ -63,18 +63,32 @@ class OffboardControl(Node):
             self.arm()
         
         # Control takeoff phase
-        if self.offboard_setpoint_counter_ < 550:
+        if self.offboard_setpoint_counter_ < 850:
             self.publish_offboard_control_mode()
             if self.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD:
                 self.publish_takeoff_setpoint()
 
-        if self.offboard_setpoint_counter_ >= 550 and self.offboard_setpoint_counter_ < 850:
+        if 850 <= self.offboard_setpoint_counter_ < 1150:
             self.publish_offboard_control_mode()
             if self.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD:
-                self.publish_path_setpoint(1.0, 0.0, self.max_altitude)
+                self.publish_path_setpoint(2.0, 0.0, self.max_altitude)
 
-        # After reaching 550 setpoints, enter the landing phase
-        if self.offboard_setpoint_counter_ >= 850:
+        if 1150 <= self.offboard_setpoint_counter_ < 1350: 
+            self.publish_offboard_control_mode()
+            if self.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD:
+                self.publish_path_setpoint(2.0, 2.0, self.max_altitude)
+                
+        if 1350 <= self.offboard_setpoint_counter_ < 1550: 
+            self.publish_offboard_control_mode()
+            if self.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD:
+                self.publish_path_setpoint(0.0, 2.0, self.max_altitude)
+
+        if 1550 <= self.offboard_setpoint_counter_ < 1750: 
+            self.publish_offboard_control_mode()
+            if self.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD:
+                self.publish_path_setpoint(0.0, 0.0, self.max_altitude)
+
+        if self.offboard_setpoint_counter_ >= 1750:
             self.publish_offboard_control_mode()
             if self.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD:
                 self.publish_manual_landing_setpoint()
@@ -130,9 +144,9 @@ class OffboardControl(Node):
         msg = TrajectorySetpoint()
 
         # Set a threshold to detect when the drone is close to the ground (e.g., 0.1 meters)
-        landing_threshold = 0.1  # You can adjust this based on how close to the ground you want to detect
+        landing_threshold = 0.2  # You can adjust this based on how close to the ground you want to detect
 
-        new_altitude = self.current_altitude + 0.1  # Decrease altitude in small steps 
+        new_altitude = self.current_altitude + landing_threshold  # Decrease altitude in small steps 
         msg.position = [self.current_x, self.current_y, new_altitude]  # Set new target position
         print(f"Landing... Current altitude: {self.current_altitude}, Target: {new_altitude}")
 
