@@ -10,6 +10,7 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        ('share/' + package_name + '/config', ['config/goto_setpoints.yaml']),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -24,6 +25,7 @@ setup(
             'line_trajectory = hermit_offboard.line_trajectory:main',
             'drone_controller = hermit_offboard.drone_controller:main',
             'takeoff_and_landing = hermit_offboard.takeoff_and_landing:main',
+            'register_setpoints = scripts.register_setpoints:main',
         ],
     },
 )

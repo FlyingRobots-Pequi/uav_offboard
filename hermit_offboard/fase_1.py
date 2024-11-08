@@ -2,7 +2,9 @@
 import time
 import yaml
 import rclpy
-from drone_controller import DroneController
+from hermit_offboard.drone_controller import DroneController
+import os
+from ament_index_python.packages import get_package_share_directory
 
 class MissionTaskManager:
     def __init__(self, drone_controller, config_file_path):
@@ -15,11 +17,7 @@ class MissionTaskManager:
         self.hold_start_time = None
 
         self.search_points = [
-            # [2.0, 0.0, -2.0],
-            # [0.0, -2.0, -2.0],
-            # [0.0, 2.0, -2.0],
-            [0.0, 0.0, -2.0],
-            [-1.0, 1.0, -2.0]
+            # [1.0, -1.0, -1.5]
         ]
 
     def execute_mission_step(self):
@@ -142,7 +140,13 @@ class MissionTaskManager:
 def main(args=None):
     rclpy.init(args=args)
     drone = DroneController()
-    mission = MissionTaskManager(drone, config_file_path='/home/ros2_ws/src/hermit_offboard/config/goto_setpoints.yaml')
+    node = rclpy.create_node('mission_task_manager')
+    
+    package_path = get_package_share_directory('hermit_offboard')
+    config_file_path = os.path.join(package_path, 'config', 'goto_setpoints.yaml')
+    
+    mission = MissionTaskManager(drone, config_file_path=config_file_path)
+    node.destroy_node()  # Clean up parameter node
 
     while rclpy.ok():
         rclpy.spin_once(drone)
