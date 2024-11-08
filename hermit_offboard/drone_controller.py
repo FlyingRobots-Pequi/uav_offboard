@@ -65,6 +65,7 @@ class DroneController(Node):
         self.tolerance = 0.05
         self.landing_altitude = -0.1
         self.takeoff_altitude = -1.5
+        self.landing_and_takeoff_sequence = False
         self.nav_state = VehicleStatus.NAVIGATION_STATE_MAX
 
     def engage_offBoard_mode(self):
@@ -131,14 +132,11 @@ class DroneController(Node):
         msg.position = [x, y, z]
         self.get_logger().info(f"Taking off: Current Altitude: {self.current_altitude:.2f}, Target Altitude: {z}")
         if z - self.tolerance < self.current_altitude < z + self.tolerance:
-            if self.immediate_takeoff:
-                self.get_logger().info("Reached immediate takeoff altitude after landing.")
-                self.immediate_takeoff = False  # Reset flag after reaching target altitude
-            else:
-            # Mark takeoff as successful when the target altitude is reached
-                self.takeoff_success = True
-                self.get_logger().info("Takeoff altitude reached successfully.")
 
+            self.takeoff_success = True
+            self.get_logger().info("Takeoff altitude reached successfully.")
+        else: 
+            self.takeoff_success = False
         msg.yaw = self.current_yaw  # Keep the yaw fixed
         self.publish_trajectory_setpoint_publisher(msg)
 
@@ -167,27 +165,32 @@ class DroneController(Node):
             if abs(self.current_vertical_velocity) < landing_velocity_threshold:
                 print("Landing detected based on vertical velocity.")
                 self.detected_land = True  # Flag indicating landing detected
-                del self.landing_detection_start_time  # Reset timer for future use        
+                del self.landing_detection_start_time  # Reset timer for future use
+            else:
+                self.detected_land = False
 
         msg.yaw = self.current_yaw  # Maintain current yaw
         self.publish_trajectory_setpoint_publisher(msg)
 
-
     def landing_and_takeoff(self, x, y, z):
-        # Check if landing is detected
+        # Reset takeoff success flag at the start of each sequence
+        self.takeoff_success = False
+        # Landing phase
         if not self.detected_land:
             self.publish_landing_setpoint(x, y)  # Continue publishing landing setpoint
+            self.landing_and_takeoff_sequence = False
         else:
-            # Begin takeoff sequence after landing is detected
-            self.publish_takeoff_setpoint(x, y, z)  # Publish the takeoff setpoint
+            # Takeoff phase once landing is detected
+            if not self.takeoff_success:
+                # Begin takeoff sequence after landing is detected
+                self.publish_takeoff_setpoint(x, y, z)  # Publish the takeoff setpoint
+                self.landing_and_takeoff_sequence = False
 
-            # Check if the takeoff altitude has been reached to complete the sequence
-            if abs(self.current_altitude - z) < self.tolerance:
-                self.detected_land = False  # Reset for future landings
-                self.get_logger().info("Takeoff after landing complete, transitioning to hover.")
-                return True  # Indicate that the takeoff after landing is complete
-        return False  # Indicate that the sequence is still ongoing
-
+                # If takeoff altitude has been reached, mark sequence as complete
+                if self.takeoff_success:
+                    self.get_logger().info("Takeoff after landing complete, transitioning to next state.")
+                    self.detected_land = False  # Reset for future landings
+                    self.landing_and_takeoff_sequence = True
 
     def vehicle_local_position_callback(self, msg):
         self.current_altitude = msg.z
