@@ -17,7 +17,7 @@ class MissionTaskManager:
         self.hold_start_time = None
 
         self.search_points = [
-            # [1.0, -1.0, -1.5]
+            [0.0, -0.0, -1.5]
         ]
 
     def execute_mission_step(self):
@@ -37,6 +37,7 @@ class MissionTaskManager:
         elif self.state == "HOLD":
             self.drone.publish_offboard_control_mode()
             self.drone.hover(0.0, 0.0, self.drone.takeoff_altitude)
+            print("Holding at takeoff position")
             if time.time() - self.hold_start_time >= 5:
                 self.state = "SEARCH_POINTS"
 
@@ -46,6 +47,7 @@ class MissionTaskManager:
                 point = self.search_points[self.search_point_index]
                 self.drone.publish_offboard_control_mode()
                 self.drone.goto_setpoint(*point)
+                print("Going to search point at setpoint: ", point)
                 
                 if not self.drone.goto:
                     self.search_point_index += 1  # Move to the next search point
@@ -57,7 +59,8 @@ class MissionTaskManager:
         elif self.state == "HOLD_AT_SEARCH_END":
             self.drone.publish_offboard_control_mode()
             self.drone.hover(*self.search_points[-1])
-            if time.time() - self.hold_start_time >= 5:
+            print("Holding at search end position")
+            if time.time() - self.hold_start_time >= 3:
                 self.goto_point_index = 0  # Reset to start navigating `gotopoints`
                 self.state = "GOTO_BASE"
 
@@ -70,7 +73,7 @@ class MissionTaskManager:
                 point = self.gotopoints[self.goto_point_index]
                 self.drone.publish_offboard_control_mode()
                 self.drone.goto_setpoint(*point)
-
+                print("Going to base at setpoint: ", point)
                 # Check if the drone has reached the point
                 if not self.drone.goto:
                     print("Arrived at setpoint: ", point)
@@ -109,6 +112,7 @@ class MissionTaskManager:
             # Return to starting position (0.0, 0.0) and prepare to land
             self.drone.publish_offboard_control_mode()
             self.drone.goto_setpoint(0.0, 0.0, self.drone.takeoff_altitude)
+            print("Returning to takeoff base at (0.0, 0.0)")
             if not self.drone.goto:
                 self.drone.detected_land = False
                 self.state = "FINAL_LAND"
