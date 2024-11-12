@@ -44,16 +44,16 @@ class MissionTaskManager:
         elif self.state == "SEARCH_SHELF":
             self.drone.publish_offboard_control_mode()
             # Acredito que os valores iniciais sejam X e Y, adicionei 2m para o drone ir ao centro da arena
-            self.drone.goto_setpoint(2.0, -4.0, self.drone.takeoff_altitude)
-            print("Moving 4 meters forward on X-axis (2.0, -4.0)")
+            self.drone.goto_setpoint(0.0, 0.0, self.drone.takeoff_altitude)
+            print("Moving 4 meters forward on X-axis (0.0, 0.0)")
 
             # Variando a altura para cada andar da prateleira
             search_points = [
              #    x    y     z
-                [2.0, 4.0, -1.0],
-                [2.0, 4.0, -1.5],
-                [2.0, 4.0, -2.0],
-                [2.0, 4.0, -2.5],
+                [0.0, 0.0, -1.0],
+                [0.0, 0.0, -1.5],
+                [0.0, 0.0, -2.0],
+                [0.0, 0.0, -2.5],
             ]
 
             lateral_steps = 3 
