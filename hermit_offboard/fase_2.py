@@ -58,7 +58,8 @@ class MissionTaskManager:
 
             lateral_steps = 3 
             lateral_distance = 1.0  #lembrar de reduzir valores de acordo com a documentação
-
+            self.wait_time = None
+            
             if self.search_point_index < len(search_points):
                 x, y, z = search_points[self.search_point_index]
                 
