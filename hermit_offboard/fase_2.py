@@ -89,12 +89,10 @@ class MissionTaskManager:
                         print(f"Returning to center position (x: {x}, y: {y}, z: {z})")
                         # time.sleep(1)
                         
-                        # time.sleep(1.5)
-                        if self.wait_time is None:
-                                self.wait_time = time.time()
-                        elif time.time() - self.wait_time <= 2:
-                            self.wait_time = None
-                            self.search_point_index += 1
+                        self.wait_time = None
+                        self.search_point_index += 1
+                else:
+                    self.wait_time = None
                     
             else:
                 self.state = "FINAL_RETURN"
