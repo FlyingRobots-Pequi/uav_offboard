@@ -50,10 +50,10 @@ class MissionTaskManager:
             # Variando a altura para cada andar da prateleira
             search_points = [
              #    x    y     z
-                [0.0, 0.0, -1.0],
-                [0.0, 0.0, -1.5],
-                [0.0, 0.0, -2.0],
                 [0.0, 0.0, -2.5],
+                [0.0, 0.0, -2.0],
+                [0.0, 0.0, -1.5],
+                [0.0, 0.0, -1.0],
             ]
 
             lateral_steps = 3 
@@ -66,23 +66,35 @@ class MissionTaskManager:
                 print(f"Moving to search position at (x: {x}, y: {y}, z: {z})")
 
                 if not self.drone.goto:
-                    print(f"Arrived at search position ({x}, {y}, {z}). Performing search...")
+                    if self.wait_time is None:
+                        self.wait_time = time.time()
+                    
+                    elif time.time() - self.wait_time <= 2:
+                        print(f"Arrived at search position ({x}, {y}, {z}). Performing search...")
 
-                    for i in range(lateral_steps):  
-                        new_y = y + lateral_distance * (i + 1)
-                        self.drone.goto_setpoint(x, new_y, z)
-                        print(f"Moving to lateral position (x: {x}, y: {new_y}, z: {z})")
-                        time.sleep(1.5)
+                        for i in range(lateral_steps):  
+                            new_y = y + lateral_distance * (i + 1)
+                            self.drone.goto_setpoint(x, new_y, z)
+                            print(f"Moving to lateral position (x: {x}, y: {new_y}, z: {z})")
+                            # time.sleep(1.5)
+
+                            if self.wait_time is None:
+                                self.wait_time = time.time()
+                            elif time.time() - self.wait_time <= 2:
+                                self.wait_time = None
+                                continue
 
                         # Volta Y inicial
                         self.drone.goto_setpoint(x, y, z)
                         print(f"Returning to center position (x: {x}, y: {y}, z: {z})")
-                        time.sleep(1)
-                    
-                    time.sleep(1.5)
-
-                    # Próximo andar
-                    self.search_point_index += 1
+                        # time.sleep(1)
+                        
+                        # time.sleep(1.5)
+                        if self.wait_time is None:
+                                self.wait_time = time.time()
+                        elif time.time() - self.wait_time <= 2:
+                            self.wait_time = None
+                            self.search_point_index += 1
                     
             else:
                 self.state = "FINAL_RETURN"
