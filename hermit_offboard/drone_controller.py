@@ -194,14 +194,15 @@ class DroneController(Node):
         
         self.publish_offboard_control_heartbeat_signal(position_control=False, velocity_control=True)
         
-        height_error =  - target_height + current_height
+        height_error =   current_height - target_height
         
-        velocity_vertical_setpoint = self.k_p * height_error
+        velocity_vertical_setpoint = -self.k_p * height_error
         
         vertical_velocity_setpoint = max(-self.max_vertical_velocity_z, min(velocity_vertical_setpoint, self.max_vertical_velocity_z))
         
         # Publish the velocity setpoint
         msg = TrajectorySetpoint()
+        msg.yaw = self.get_current_yaw()
         msg.velocity = [0.0, 0.0, vertical_velocity_setpoint]  # x, y, and z velocities
         msg.timestamp = int(Clock().now().nanoseconds / 1000)
         self.trajectory_setpoint_publisher_.publish(msg)
@@ -242,6 +243,7 @@ class DroneController(Node):
         
         msg = TrajectorySetpoint()
         msg.velocity = [velocity_x, velocity_y, 0.0]  # x, y, and z velocities (z = 0 for no vertical movement)
+        msg.yaw = self.get_current_yaw()
         msg.timestamp = int(Clock().now().nanoseconds / 1000)
         self.trajectory_setpoint_publisher_.publish(msg)
 
@@ -266,6 +268,7 @@ class DroneController(Node):
         
         msg = TrajectorySetpoint()
         msg.position = [target_x, target_y, target_z]  # x, y, and z positions
+        msg.yaw = self.get_current_yaw()
         msg.timestamp = int(Clock().now().nanoseconds / 1000)
         self.trajectory_setpoint_publisher_.publish(msg)
         
@@ -301,15 +304,17 @@ class DroneController(Node):
             vertical_acceleration = self.get_current_acceleration()[2]  # Assuming z is at index 2
 
             # Check if altitude exceeds target threshold
-            if current_altitude >= target_altitude - altitude_threshold:
+            self.get_logger().info(f"current_altitude: {current_altitude}, target_altitude: {target_altitude}, altitude_threshold: {altitude_threshold}")
+            if current_altitude <= target_altitude - altitude_threshold:
+                self.get_logger().info("Takeoff in progress.")
                 # Check if conditions indicate stability at target altitude
                 if abs(vertical_velocity) < velocity_threshold and abs(vertical_acceleration) < acceleration_threshold:
-                    # Start or check the stable time counter
-                    if takeoff_stable_start_time is None:
-                        takeoff_stable_start_time = time.time()
-                    elif time.time() - takeoff_stable_start_time >= stable_time:
-                        self.get_logger().info("Takeoff completed and stable at target altitude.")
-                        return True
+                    # # Start or check the stable time counter
+                    # if takeoff_stable_start_time is None:
+                    #     takeoff_stable_start_time = time.time()
+                    # elif time.time() - takeoff_stable_start_time >= stable_time:
+                    self.get_logger().info("Takeoff completed and stable at target altitude.")
+                    return True
             else:
                 # Reset stable time counter if conditions are not met
                 takeoff_stable_start_time = None
@@ -319,7 +324,7 @@ class DroneController(Node):
 
         
         
-    def hold_position(self, target_hold_x, target_hold_y, target_hold_z):
+    def hold(self, target_hold_x, target_hold_y, target_hold_z):
         """
         Command the drone to hold its current position indefinitely until another function is activated.
         
@@ -348,7 +353,7 @@ class DroneController(Node):
         # Log exit from hold mode
         self.get_logger().info("Exiting hold position mode.")
 
-    def goto_setpoint(self, target_x, target_y, target_z, position_threshold=0.1, velocity_threshold=0.1, acceleration_threshold=0.1, stable_time=2.0):
+    def goto_setpoint(self, target_x, target_y, target_z, position_threshold=0.05, velocity_threshold=0.1, acceleration_threshold=0.1, stable_time=2.0):
         """
         Command the drone to move to a specific (x, y, z) coordinate and confirm when it arrives.
         
@@ -438,5 +443,4 @@ class DroneController(Node):
 
             # Small delay to keep the loop from running too fast
             rclpy.spin_once(self, timeout_sec=0.1)
-
-
+    
