@@ -56,15 +56,18 @@ class DroneController(Node):
         
         self.integral_x = 0.0
         self.integral_y = 0.0
+        self.integral_z = 0.0
         
         
         self.previous_error_x = 0.0
         self.previous_error_y = 0.0
+        self.previous_error_z = 0.0
 
         self.dt = 0.1
 
-        self.max_vertical_velocity_z = 0.5
-        self.max_vertical_velocity_xy = 0.5
+        # Define max velocities for horizontal and vertical movement
+        self.max_horizontal_velocity = 0.5  # Adjust as needed
+        self.max_vertical_velocity_z = 0.5  # Adjust as needed
         
         
     def vehicle_local_position_callback(self, vehicle_local_position):
@@ -181,78 +184,9 @@ class DroneController(Node):
         self.offboard_control_mode_publisher_.publish(msg)
         
         # Get log information about the control mode
-        # control_type = "position" if position_control else "velocity" if velocity_control else "none"
-        # self.get_logger().info(f"Offboard control mode heartbeat signal set to {control_type}")
+        control_type = "position" if position_control else "velocity" if velocity_control else "none"
+        self.get_logger().info(f"[PUBLISH_OFFBOARD_CONTROL_HEARTBEAT_SIGNAL] Offboard control mode heartbeat signal set to {control_type}")
 
-    def publish_z_velocity_control_setpoint(self, current_height, target_height):
-        """
-            Controls the drone's height using velocity setpoints to reach the target height.
-            
-            Args:
-                current_height (float): The current height of the drone in meters.
-        """
-        
-        self.publish_offboard_control_heartbeat_signal(position_control=False, velocity_control=True)
-        
-        height_error =   current_height - target_height
-        
-        velocity_vertical_setpoint = -self.k_p * height_error
-        
-        vertical_velocity_setpoint = max(-self.max_vertical_velocity_z, min(velocity_vertical_setpoint, self.max_vertical_velocity_z))
-        
-        # Publish the velocity setpoint
-        msg = TrajectorySetpoint()
-        msg.yaw = self.get_current_yaw()
-        msg.velocity = [0.0, 0.0, vertical_velocity_setpoint]  # x, y, and z velocities
-        msg.timestamp = int(Clock().now().nanoseconds / 1000)
-        self.trajectory_setpoint_publisher_.publish(msg)
-        
-        self.get_logger().info(f"Height control: Current height: {current_height:.2f} m, Target height: {target_height:.2f} m")
-        
-    def publish_xy_velocity_control_setpoint(self, current_x, current_y, target_x, target_y):
-        """
-            Control the x and y position of the drone precisely using a PID controller.
-            
-            Args:
-                current_x (float): The current x-coordinate of the drone.
-                current_y (float): The current y-coordinate of the drone.
-        """        
-
-        self.publish_offboard_control_heartbeat_signal(position_control=False, velocity_control=True)
-        
-        error_x = target_x - current_x
-        error_y = target_y - current_y
-        
-        p_term_x = self.k_p * error_x
-        p_term_y = self.k_p * error_y
-        
-        integral_x  += error_x * self.dt
-        integral_y  += error_y * self.dt
-        
-        i_term_x = self.k_i * integral_x
-        i_term_y = self.k_i * integral_y
-        
-        d_term_x = self.k_d * (error_x - self.previous_error_x) / self.dt
-        d_term_y = self.k_d * (error_y - self.previous_error_y) / self.dt
-        
-        velocity_x = p_term_x + i_term_x + d_term_x
-        velocity_y = p_term_y + i_term_y + d_term_y
-        
-        velocity_x = max(-self.max_vertical_velocity_xy, min(velocity_x, self.max_vertical_velocity_xy))
-        velocity_y = max(-self.max_vertical_velocity_xy, min(velocity_y, self.max_vertical_velocity_xy))
-        
-        msg = TrajectorySetpoint()
-        msg.velocity = [velocity_x, velocity_y, 0.0]  # x, y, and z velocities (z = 0 for no vertical movement)
-        msg.yaw = self.get_current_yaw()
-        msg.timestamp = int(Clock().now().nanoseconds / 1000)
-        self.trajectory_setpoint_publisher_.publish(msg)
-
-        self.previous_error_x = error_x
-        self.previous_error_y = error_y
-        
-        # self.get_logger().info(f"Position control: Current position: ({current_x:.2f}, {current_y:.2f}), Target position: ({target_x:.2f}, {target_y:.2f})")
-        # self.get_logger().info(f"Velocity setpoint: ({velocity_x:.2f}, {velocity_y:.2f})")
-        
     def publish_position_control_setpoint(self, target_x, target_y, target_z):
         
         self.publish_offboard_control_heartbeat_signal(position_control=True, velocity_control=False)
@@ -272,58 +206,150 @@ class DroneController(Node):
         msg.timestamp = int(Clock().now().nanoseconds / 1000)
         self.trajectory_setpoint_publisher_.publish(msg)
         
-        self.get_logger().info(f"Position control: Target position: ({target_x:.2f}, {target_y:.2f}, {target_z:.2f})")
+        self.get_logger().info(f"[PUB_POSITION_CONTROL_SETPOINT]Position control: Target position: ({target_x:.2f}, {target_y:.2f}, {target_z:.2f})")
         
+    def publish_velocity_control_setpoint(self, target_vx, target_vy, target_vz):
+                    
+        self.publish_offboard_control_heartbeat_signal(position_control=True, velocity_control=False)
         
-    def takeoff(self, target_altitude=2.0, ascent_velocity=0.3, altitude_threshold=0.1, velocity_threshold=0.1, acceleration_threshold=0.1, stable_time=2.0):
         """
-        Command the drone to take off to a target altitude without specifying exact altitude control, by ascending until stability is detected.
+            Publishes a velocity setpoint to move the drone to a specific (x, y, z) coordinate.
+            
+            Args:
+                target_vx (float): Target vx-velocity in meters/second.
+                target_vy (float): Target vy-velocity in meters/second.
+                target_vz (float): Target vz-velocity in meters/second.
+        """
+        
+        # Construct and publish the velocity command
+        msg = TrajectorySetpoint()
+        msg.velocity = [target_vx, target_vy, target_vz]  # Set x, y, and z velocities
+        msg.yaw = self.get_current_yaw()
+        msg.timestamp = int(Clock().now().nanoseconds / 1000)
+        self.trajectory_setpoint_publisher_.publish(msg)
+
+        self.get_logger().info(f"[PUB_VELOCITY_CONTROL_SETPOINT]Velocity control: Target velocity: ({target_vx:.2f}, {target_vy:.2f}, {target_vz:.2f})")
+    
+    def position_correction_controller(self, target_x, target_y, target_z):
+        """
+        Controls the x, y, and z position of the drone using a PID controller.
         
         Args:
-            target_altitude (float): Approximate target altitude for the takeoff (in meters).
-            ascent_velocity (float): Velocity (in m/s) at which the drone ascends.
+            current_x (float): The current x-coordinate of the drone.
+            current_y (float): The current y-coordinate of the drone.
+            current_z (float): The current z-coordinate of the drone.
+            target_x (float): The target x-coordinate for the drone.
+            target_y (float): The target y-coordinate for the drone.
+            target_z (float): The target z-coordinate for the drone (negative for heights above the ground).
+        """
+        
+        current_x, current_y, current_z = self.get_current_position()
+        
+        # Ensure offboard mode is set for velocity control
+        self.publish_offboard_control_heartbeat_signal(position_control=False, velocity_control=True)
+
+        # Error calculations for PID controller
+        error_x = target_x - current_x
+        error_y = target_y - current_y
+        error_z = target_z - current_z  # Z-axis oriented down, so positive error moves downward
+
+        # Proportional terms
+        p_term_x = self.k_p * error_x
+        p_term_y = self.k_p * error_y
+        p_term_z = self.k_p * error_z
+
+        # Integral terms (summing error over time)
+        self.integral_x += error_x * self.dt
+        self.integral_y += error_y * self.dt
+        self.integral_z += error_z * self.dt
+
+        i_term_x = self.k_i * self.integral_x
+        i_term_y = self.k_i * self.integral_y
+        i_term_z = self.k_i * self.integral_z
+
+        # Derivative terms (rate of change of error)
+        d_term_x = self.k_d * (error_x - self.previous_error_x) / self.dt
+        d_term_y = self.k_d * (error_y - self.previous_error_y) / self.dt
+        d_term_z = self.k_d * (error_z - self.previous_error_z) / self.dt
+
+        # Calculated velocities with PID terms
+        velocity_x = p_term_x + i_term_x + d_term_x
+        velocity_y = p_term_y + i_term_y + d_term_y
+        velocity_z = p_term_z + i_term_z + d_term_z
+
+        # Limit velocities to the maximum allowed
+        velocity_x = max(-self.max_horizontal_velocity, min(velocity_x, self.max_horizontal_velocity))
+        velocity_y = max(-self.max_horizontal_velocity, min(velocity_y, self.max_horizontal_velocity))
+        velocity_z = max(-self.max_vertical_velocity_z, min(velocity_z, self.max_vertical_velocity_z))
+
+        # Publish the velocity setpoint
+        self.publish_velocity_control_setpoint(velocity_x, velocity_y, velocity_z)
+
+        # Store errors for the next derivative calculation
+        self.previous_error_x = error_x
+        self.previous_error_y = error_y
+        self.previous_error_z = error_z
+
+        # Log the current velocity setpoints for debugging
+        self.drone.get_logger().info(
+            f" [POSITION_CORRECTION] Velocity setpoint: ({velocity_x:.2f}, {velocity_y:.2f}, {velocity_z:.2f}) for target ({target_x}, {target_y}, {target_z})"
+        )
+
+        
+    def takeoff(self, target_z=-1.5, ascent_velocity=-1.5, altitude_threshold=0.1, velocity_threshold=0.1, acceleration_threshold=0.1, stable_time=2.0):
+        """
+        Command the drone to take off to a target altitude by ascending at a specified velocity 
+        until stability is detected.
+
+        Args:
+            target_z (float): Target altitude for takeoff (in meters, negative for above-ground targets).
+            ascent_velocity (float): Vertical ascent velocity (in m/s).
             altitude_threshold (float): Altitude range within which takeoff is considered successful.
             velocity_threshold (float): Threshold for vertical velocity indicating stopped ascent.
             acceleration_threshold (float): Threshold for vertical acceleration indicating stability.
             stable_time (float): Duration for which conditions must be met to confirm takeoff completion.
         """
-        # Start ascending by setting offboard mode for velocity control
+        # Set offboard mode for velocity control
         self.publish_offboard_control_heartbeat_signal(position_control=False, velocity_control=True)
 
-        # Initialize timer for stable conditions
+        # Initialize timer for stability conditions
         takeoff_stable_start_time = None
 
-        # Control loop for adaptive takeoff
+        # Takeoff control loop
         while rclpy.ok():
-            # Publish a small upward velocity setpoint
-            self.publish_z_velocity_control_setpoint(self.get_current_position()[2], ascent_velocity)
+            # Command upward velocity to achieve takeoff
+            self.publish_velocity_control_setpoint(target_vx=0.0, target_vy=0.0, target_vz=ascent_velocity)
 
             # Get current altitude, vertical velocity, and acceleration
-            current_altitude = self.get_current_position()[2]  # Assuming z is at index 2
-            vertical_velocity = self.get_current_velocity()[2]  # Assuming z is at index 2
-            vertical_acceleration = self.get_current_acceleration()[2]  # Assuming z is at index 2
+            current_altitude = self.get_current_position()[2]  # Z-axis altitude
+            vertical_velocity = self.get_current_velocity()[2]
+            vertical_acceleration = self.get_current_acceleration()[2]
 
-            # Check if altitude exceeds target threshold
-            self.get_logger().info(f"current_altitude: {current_altitude}, target_altitude: {target_altitude}, altitude_threshold: {altitude_threshold}")
-            if current_altitude <= target_altitude - altitude_threshold:
-                self.get_logger().info("Takeoff in progress.")
-                # Check if conditions indicate stability at target altitude
+            # Debugging: Log the altitude and velocity status
+            self.get_logger().info(f"Current Altitude: {current_altitude}, Target Altitude: {target_z}, Altitude Threshold: {altitude_threshold}")
+
+            # Check if altitude is close enough to the target
+            if abs(current_altitude - target_z) <= altitude_threshold:
+                self.get_logger().info("[TAKEOFF]Target altitude reached. Checking for stability.")
+
+                # Check stability (low velocity and acceleration)
                 if abs(vertical_velocity) < velocity_threshold and abs(vertical_acceleration) < acceleration_threshold:
-                    # # Start or check the stable time counter
-                    # if takeoff_stable_start_time is None:
-                    #     takeoff_stable_start_time = time.time()
-                    # elif time.time() - takeoff_stable_start_time >= stable_time:
-                    self.get_logger().info("Takeoff completed and stable at target altitude.")
-                    return True
+                    # Start or check the stable time counter
+                    if takeoff_stable_start_time is None:
+                        takeoff_stable_start_time = time.time()
+                        self.get_logger().info("[TAKEOFF]Stability detected, starting stable time counter.")
+                    elif time.time() - takeoff_stable_start_time >= stable_time:
+                        self.get_logger().info("[TAKEOFF]Takeoff completed and stable at target altitude.")
+                        return True
             else:
-                # Reset stable time counter if conditions are not met
+                # Reset stable time counter if stability conditions are not met
                 takeoff_stable_start_time = None
+                self.get_logger().info("[TAKEOFF]Ascending to target altitude.")
 
-            # Small delay to keep the loop from running too fast
+            # Prevent the loop from running too fast
             rclpy.spin_once(self, timeout_sec=0.1)
 
-        
-        
+
     def hold(self, target_hold_x, target_hold_y, target_hold_z):
         """
         Command the drone to hold its current position indefinitely until another function is activated.
@@ -345,15 +371,15 @@ class DroneController(Node):
             self.publish_position_control_setpoint(target_hold_x, target_hold_y, target_hold_z)
 
             # Log the holding position message periodically
-            self.get_logger().info(f"Holding position at ({target_hold_x:.2f}, {target_hold_y:.2f}, {target_hold_z:.2f})")
+            self.get_logger().info(f"[HOLD]Holding position at ({target_hold_x:.2f}, {target_hold_y:.2f}, {target_hold_z:.2f})")
             
             # Small delay to prevent overloading the control loop
             rclpy.spin_once(self, timeout_sec=0.1)
 
         # Log exit from hold mode
-        self.get_logger().info("Exiting hold position mode.")
+        self.get_logger().info("[HOLD]Exiting hold position mode.")
 
-    def goto_setpoint(self, target_x, target_y, target_z, position_threshold=0.05, velocity_threshold=0.1, acceleration_threshold=0.1, stable_time=2.0):
+    def goto_setpoint(self, target_x, target_y, target_z, position_threshold=0.1, velocity_threshold=0.1, acceleration_threshold=0.1, stable_time=2.0):
         """
         Command the drone to move to a specific (x, y, z) coordinate and confirm when it arrives.
         
@@ -384,7 +410,9 @@ class DroneController(Node):
 
             # Calculate position error
             position_error = ((target_x - current_x) ** 2 + (target_y - current_y) ** 2 + (target_z - current_z) ** 2) ** 0.5
-
+            
+            self.get_logger().info(f"[GOTO]Current position: ({current_x:.2f}, {current_y:.2f}, {current_z:.2f})")
+            
             # Check if the position is within the target threshold
             if position_error < position_threshold:
                 # Check if the drone is stable within velocity and acceleration thresholds
@@ -395,52 +423,62 @@ class DroneController(Node):
                     if arrival_stable_start_time is None:
                         arrival_stable_start_time = time.time()
                     elif time.time() - arrival_stable_start_time >= stable_time:
-                        self.get_logger().info(f"Arrived at setpoint: ({target_x:.2f}, {target_y:.2f}, {target_z:.2f})")
+                        self.get_logger().info(f"[GOTO]Arrived at setpoint: ({target_x:.2f}, {target_y:.2f}, {target_z:.2f})")
                         return True
             else:
                 # Reset stable time counter if conditions are not met
                 arrival_stable_start_time = None
+            
+            self.get_logger().info(f"[GOTO]Moving to setpoint: ({target_x:.2f}, {target_y:.2f}, {target_z:.2f})")
 
-            # Small delay to keep the loop from running too fast
-            rclpy.spin_once(self, timeout_sec=0.1)        
-
-    def land(self, descent_velocity=0.3, velocity_threshold=0.1, acceleration_threshold=0.1, stable_time=2.0):
-        """
-        Command the drone to land without specifying a target altitude by gradually descending and monitoring landing conditions.
-        
-        Args:
-            descent_velocity (float): The velocity (in m/s) at which the drone descends.
-            velocity_threshold (float): Threshold for vertical velocity to indicate stopped descent.
-            acceleration_threshold (float): Threshold for vertical acceleration indicating stability.
-            stable_time (float): Duration for which the conditions must be met to confirm landing.
-        """
-        # Start descent by setting offboard mode for velocity control
-        self.publish_offboard_control_heartbeat_signal(position_control=False, velocity_control=True)
-
-        # Initialize timer for stable conditions
-        landing_stable_start_time = None
-
-        # Control loop for adaptive landing
-        while rclpy.ok():
-            # Publish a small downward velocity setpoint
-            self.publish_z_velocity_control_setpoint(self.get_current_position()[2], -descent_velocity)
-
-            # Get current vertical velocity and acceleration
-            vertical_velocity = self.get_current_velocity()[2]  # Assuming z is at index 2
-            vertical_acceleration = self.get_current_acceleration()[2]  # Assuming z is at index 2
-
-            # Check if conditions indicate that landing is complete
-            if abs(vertical_velocity) < velocity_threshold and abs(vertical_acceleration) < acceleration_threshold:
-                # Start or check the stable time counter
-                if landing_stable_start_time is None:
-                    landing_stable_start_time = time.time()
-                elif time.time() - landing_stable_start_time >= stable_time:
-                    self.get_logger().info("Landing detected.")
-                    return True
-            else:
-                # Reset stable time counter if conditions are not met
-                landing_stable_start_time = None
 
             # Small delay to keep the loop from running too fast
             rclpy.spin_once(self, timeout_sec=0.1)
+
+    def land(self, descent_velocity=0.1, velocity_threshold=0.0025, acceleration_threshold=0.001, stable_time=2.0):
+        """
+        Command the drone to land by gradually descending until stability is detected near the ground.
+
+        Args:
+            descent_velocity (float): Downward velocity (m/s) to initiate descent.
+            velocity_threshold (float): Threshold for vertical velocity indicating a stable descent.
+            acceleration_threshold (float): Threshold for vertical acceleration indicating stability.
+            stable_time (float): Duration for which conditions must be met to confirm landing.
+        """
+        # Set offboard mode to velocity control for descent
+        self.publish_offboard_control_heartbeat_signal(position_control=False, velocity_control=True)
+
+        # Initialize stable time counter for landing
+        landing_stable_start_time = None
+
+        # Begin controlled descent loop
+        while rclpy.ok():
+            # Command a downward velocity to descend
+            self.publish_velocity_control_setpoint(target_vx=0.0, target_vy=0.0, target_vz=descent_velocity)
+
+            # Retrieve the current vertical velocity and acceleration
+            vertical_velocity = self.get_current_velocity()[2]
+            vertical_acceleration = self.get_current_acceleration()[2]
+
+            # Debugging: Log the vertical descent progress and current metrics
+            self.get_logger().info(f"Vertical velocity: {vertical_velocity}, acceleration: {vertical_acceleration}")
+
+            # Check if stability conditions indicate landing (low velocity and acceleration)
+            if   0.0 < abs(vertical_velocity) < 0.01 and 0.0 < abs(vertical_acceleration) < 0.1:
+                # Start or continue the stability timer if conditions are met
+                if landing_stable_start_time is None:
+                    landing_stable_start_time = time.time()
+                    self.get_logger().info("[LAND]Landing stability detected, starting stable time counter.")
+                elif time.time() - landing_stable_start_time >= stable_time:
+                    # Confirm landing as stable for required duration
+                    self.get_logger().info("[LAND]Landing complete and stable.")
+                    return True
+            else:
+                # Reset the stability counter if conditions are not met continuously
+                landing_stable_start_time = None
+                self.get_logger().info("[LAND]Descent in progress, conditions not yet stable.")
+
+            # Small delay to avoid running the loop too fast
+            rclpy.spin_once(self, timeout_sec=0.1)
+
     

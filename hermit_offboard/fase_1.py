@@ -17,14 +17,16 @@ class MissionTaskManager:
         self.hold_start_time = None
 
         self.search_points = [
-            [0.0, -0.0, -1.5]
+            [0.0, 0.0, -1.5]
         ]
         
         self.takeoff_altitude = -1.5
         self.hold_time = 5
 
     def execute_mission_step(self):
-        if self.state == "ARM":
+        if self.state == "SET_MODE":
+            self.drone.set_mode("OFFBOARD")
+        elif self.state == "ARM":
             self.arm_drone()
         elif self.state == "TAKEOFF":
             self.initial_takeoff_drone()
@@ -51,15 +53,19 @@ class MissionTaskManager:
         elif self.state == "MISSION_COMPLETE":
             self.drone.get_logger().info("Mission completed.")
 
+    def set_mode(self, mode):
+        self.drone.set_mode(mode)
+        self.state = "ARM"
+        self.drone.get_logger().info(f"Transitioned to ARM state.")
+
     def arm_drone(self):
-        self.drone.set_mode("OFFBOARD")
         self.drone.arm()
         self.state = "TAKEOFF"
         self.drone.get_logger().info("Armed and transitioned to TAKEOFF state.")
 
     def initial_takeoff_drone(self):
         
-        takeoff_successful = self.drone.takeoff(target_altitude=self.takeoff_altitude)
+        takeoff_successful = self.drone.takeoff(target_z=self.takeoff_altitude)
         
         if takeoff_successful:
             self.hold_start_time = time.time()
@@ -68,7 +74,7 @@ class MissionTaskManager:
 
     def base_takeoff(self):
         
-        takeoff_successful = self.drone.takeoff(target_altitude=self.takeoff_altitude)
+        takeoff_successful = self.drone.takeoff(target_z=self.takeoff_altitude)
         
         if takeoff_successful:
             self.hold_start_time = time.time()
@@ -83,8 +89,9 @@ class MissionTaskManager:
         Args:
             next_state (str): The state to transition to after the hold duration is complete.
         """
+        
         # Check if the hold duration has passed
-        if time.time() - self.hold_start_time >= self.hold_time:
+        if time.time() - self.hold_start_time < self.hold_time:
             # Update the next state
             self.state = next_state
             self.drone.get_logger().info(f"Hold complete. Transitioning to {next_state}.")
@@ -94,9 +101,10 @@ class MissionTaskManager:
                 self.search_point_index += 1
             elif next_state == "GOTO_EACH_BASE":
                 self.goto_point_index += 1
-            if point_index >= len(points):
+            # Check if all points have been processed
+            if point_index >= len(points) - 1:
                 self.state = "FINAL_RETURN"
-
+                self.drone.get_logger().info("All points processed. Transitioning to FINAL_RETURN.")
         else:
             # Keep holding position until the hold time is complete
             current_position = self.drone.get_current_position()
@@ -147,13 +155,8 @@ class MissionTaskManager:
         target_x, target_y, _ = self.gotopoints[self.goto_point_index]
 
         # Step 1: Correct XY position to the center of the base
-        current_x, current_y, _ = self.drone.get_current_position()
-        self.drone.publish_xy_velocity_control_setpoint(
-            current_x=current_x,
-            current_y=current_y,
-            target_x=target_x,
-            target_y=target_y
-        )
+        current_x, current_y, current_z = self.drone.get_current_position()
+        self.drone.position_correction_controller(target_x, target_y, target_z=current_z)
         
         # Check if the drone is close enough to the target center (within a small threshold)
         position_tolerance = 0.1  # meters, adjust as needed for precision
