@@ -227,20 +227,6 @@ class DroneController(Node):
         msg.timestamp = int(Clock().now().nanoseconds / 1000)
         self.trajectory_setpoint_publisher_.publish(msg) 
 
-    def battery_callback(self, msg):
-        """Callback function to update the battery percentage."""
-        if msg.remaining >= 0:  
-            self.battery_percentage = msg.remaining * 100 
-            self.get_logger().info(f"Battery level: {self.battery_percentage:.2f}%")
-        else:
-            self.get_logger().info("Battery level unknown")
-
-    def check_battery(self):
-        if self.battery_percentage <= 11:
-            self.get_logger().info(f"Low battery: {self.battery_percentage:.2f}%")
-            return True
-        return False
-
 ### Silver Controll ###
 
     def move_forward(self, speed: float):
