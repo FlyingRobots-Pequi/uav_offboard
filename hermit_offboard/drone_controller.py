@@ -285,3 +285,14 @@ class DroneController(Node):
         msg.timestamp = int(Clock().now().nanoseconds / 1000)
         self.trajectory_setpoint_publisher_.publish(msg)
         
+    def rotate_clockwise(self):
+        """Rotate the drone 90 degrees clockwise."""
+        angle = 1.5708  # 90 degrees in radians
+        target_yaw = self.current_yaw + angle
+
+        msg = TrajectorySetpoint()
+        msg.position = [self.current_x, self.current_y, self.current_altitude]
+        msg.yaw = target_yaw
+        msg.timestamp = int(Clock().now().nanoseconds / 1000)
+        self.trajectory_setpoint_publisher_.publish(msg)
+        
