@@ -11,6 +11,10 @@ from std_msgs.msg import String
     drone e o drone_controller.py está usando velocity ao invés de position.
 '''
 
+'''
+    Também é preciso conferir como usar o yaw para fazer a rotação do drone.
+'''
+
 class MissionTaskManager(Node):
     def __init__(self, drone_controller):
         super().__init__('mission_task_manager')
