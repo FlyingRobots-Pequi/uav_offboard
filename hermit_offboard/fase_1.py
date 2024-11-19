@@ -17,19 +17,24 @@ class MissionTaskManager:
         self.hold_start_time = None
 
         self.search_points = [
-            [0.0, -0.0, -1.5]
+            [0.0, 0.0, -1.5],
+            [0.0, 0.0, -2.0],
+            [0.0, 0.0, -1.75],
+            [0.0, 0.0, -1.50],
+            [0.0, 0.0, -1.25],
+            [0.0, 0.0, -1.00]
         ]
 
     def execute_mission_step(self):
         # State machine for mission steps
         if self.state == "ARM":
-            self.drone.arm()
             self.drone.engage_offBoard_mode()
+            self.drone.arm()
             self.state = "TAKEOFF"
 
         elif self.state == "TAKEOFF":
             self.drone.publish_offboard_control_mode()
-            self.drone.publish_takeoff_setpoint(0.0, 0.0, self.drone.takeoff_altitude)
+            self.drone.publish_takeoff_setpoint(-0.08, 0.0, self.drone.takeoff_altitude)
             if self.drone.takeoff_success:
                 self.hold_start_time = time.time()
                 self.state = "HOLD"
@@ -38,7 +43,8 @@ class MissionTaskManager:
             self.drone.publish_offboard_control_mode()
             self.drone.hover(0.0, 0.0, self.drone.takeoff_altitude)
             print("Holding at takeoff position")
-            if time.time() - self.hold_start_time >= 5:
+            if time.time() - self.hold_start_time >= 20:
+                # self.state = "FINAL_LAND"
                 self.state = "SEARCH_POINTS"
 
         elif self.state == "SEARCH_POINTS":
@@ -60,9 +66,10 @@ class MissionTaskManager:
             self.drone.publish_offboard_control_mode()
             self.drone.hover(*self.search_points[-1])
             print("Holding at search end position")
-            if time.time() - self.hold_start_time >= 3:
+            if time.time() - self.hold_start_time >= 10:
                 self.goto_point_index = 0  # Reset to start navigating `gotopoints`
-                self.state = "GOTO_BASE"
+                self.state = "FINAL_LAND"
+                # self.state = "GOTO_BASE"
 
         elif self.state == "GOTO_BASE":
             # Reload goto setpoints if modified

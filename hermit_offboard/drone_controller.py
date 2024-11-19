@@ -19,31 +19,31 @@ class DroneController(Node):
         # Create subscribers
         self.status_sub = self.create_subscription(
             VehicleStatus,
-            '/fmu/out/vehicle_status',
+            '/pequi/hermit/fmu/out/vehicle_status',
             self.vehicle_status_callback,
             qos_profile)
         
         self.local_position_sub = self.create_subscription(
             VehicleLocalPosition,
-            '/fmu/out/vehicle_local_position',
+            '/pequi/hermit/fmu/out/vehicle_local_position',
             self.vehicle_local_position_callback,
             qos_profile)
         
         # Create publishers
         self.offboard_control_mode_publisher_ = self.create_publisher(
             OffboardControlMode,
-            '/fmu/in/offboard_control_mode', 
+            '/pequi/hermit/fmu/in/offboard_control_mode', 
             qos_profile)
         
         self.trajectory_setpoint_publisher_ = self.create_publisher(
             TrajectorySetpoint,
-            '/fmu/in/trajectory_setpoint',
+            '/pequi/hermit/fmu/in/trajectory_setpoint',
             qos_profile)
         
         self.vehicle_command_publisher_ = self.create_publisher(
             VehicleCommand,
-            '/fmu/in/vehicle_command',
-            qos_profile)
+            '/pequi/hermit/fmu/in/vehicle_command',
+            qos_profile)   
 
         # Drone state variables
         self.current_altitude = 0.0
@@ -64,9 +64,13 @@ class DroneController(Node):
         self.goto = True
         self.tolerance = 0.05
         self.landing_altitude = -0.1
-        self.takeoff_altitude = -1.5
+        self.takeoff_altitude = -1.0
         self.landing_and_takeoff_sequence = False
         self.land_start_time = None
+        self.landed_x = 0
+        self.landed_y = 0
+        self.landed_z = 0
+            
         self.nav_state = VehicleStatus.NAVIGATION_STATE_MAX
 
     def engage_offBoard_mode(self):
@@ -112,12 +116,18 @@ class DroneController(Node):
         self.offboard_control_mode_publisher_.publish(msg)
 
     def hover(self, x, y, z):
+        
+        self.publish_offboard_control_mode()
+        
         msg = TrajectorySetpoint(position=[x, y, z], yaw=self.current_yaw)
         msg.timestamp = int(Clock().now().nanoseconds / 1000)
         self.trajectory_setpoint_publisher_.publish(msg)
         # print(f"Hovering at {x:.2f}, {y:.2f}, {z:.2f}")
 
     def goto_setpoint(self, x, y, z):
+
+        self.publish_offboard_control_mode()
+
         msg = TrajectorySetpoint(position=[x, y, z], yaw=self.current_yaw)
         msg.timestamp = int(Clock().now().nanoseconds / 1000)
         self.trajectory_setpoint_publisher_.publish(msg)
@@ -127,6 +137,9 @@ class DroneController(Node):
         # print(f"Going to {x, y, z}")
 
     def publish_takeoff_setpoint(self, x, y, z):
+
+        self.publish_offboard_control_mode()
+
         msg = TrajectorySetpoint()
 
         # Check if the drone is below the takeoff altitude and has not yet achieved success
@@ -142,6 +155,10 @@ class DroneController(Node):
         self.publish_trajectory_setpoint_publisher(msg)
 
     def publish_landing_setpoint(self, x, y):
+
+        self.publish_offboard_control_mode()
+
+
         msg = TrajectorySetpoint()
 
         # Set a threshold to detect when the drone is close to the ground (e.g., 0.1 meters)
@@ -165,6 +182,9 @@ class DroneController(Node):
             # Begin landing detection based on vertical velocity after the delay
             if abs(self.current_vertical_velocity) < landing_velocity_threshold:
                 print("Landing detected based on vertical velocity.")
+                self.landed_x = self.current_x
+                self.landed_y = self.current_y
+                self.landed_z = self.current_altitude
                 self.detected_land = True  # Flag indicating landing detected
                 del self.landing_detection_start_time  # Reset timer for future use
             else:
@@ -174,31 +194,27 @@ class DroneController(Node):
         self.publish_trajectory_setpoint_publisher(msg)
 
     def landing_and_takeoff(self, x, y, z):
+
+        self.publish_offboard_control_mode()
+
         # Reset takeoff success flag at the start of each sequence
         self.takeoff_success = False
         # Landing phase
         if not self.detected_land:
             self.publish_landing_setpoint(x, y)  # Continue publishing landing setpoint
-            self.landing_and_takeoff_sequence = False  # Reset start time if not in hover mode
-            self.land_start_time = time.time()
+            self.landing_and_takeoff_sequence = False
         else:
-            # Continue hovering for 3 seconds
-            hold_for_takeoff = 5
-            if time.time() - self.land_start_time < hold_for_takeoff:
-                print(f"Landing detected! Preparing to takeoff in {(hold_for_takeoff - (time.time() - self.land_start_time)):.0f} seconds...")
-                self.hover(self.current_x, self.current_y, self.current_altitude)  # Keep calling hover during the 3 seconds
-            else:
-                # Takeoff phase once landing is detected
-                if not self.takeoff_success:
-                    # Begin takeoff sequence after landing is detected
-                    self.publish_takeoff_setpoint(x, y, z)  # Publish the takeoff setpoint
-                    self.landing_and_takeoff_sequence = False
+            # Takeoff phase once landing is detected
+            if not self.takeoff_success:
+                # Begin takeoff sequence after landing is detected
+                self.publish_takeoff_setpoint(x, y, z)  # Publish the takeoff setpoint
+                self.landing_and_takeoff_sequence = False
 
-                    # If takeoff altitude has been reached, mark sequence as complete
-                    if self.takeoff_success:
-                        self.get_logger().info("Takeoff after landing complete, transitioning to next state.")
-                        self.detected_land = False  # Reset for future landings
-                        self.landing_and_takeoff_sequence = True
+                # If takeoff altitude has been reached, mark sequence as complete
+                if self.takeoff_success:
+                    self.get_logger().info("Takeoff after landing complete, transitioning to next state.")
+                    self.detected_land = False  # Reset for future landings
+                    self.landing_and_takeoff_sequence = True
 
     def vehicle_local_position_callback(self, msg):
         self.current_altitude = msg.z
