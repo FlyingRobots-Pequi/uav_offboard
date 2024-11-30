@@ -166,7 +166,7 @@ class DroneController(Node):
         
         self.get_logger().info("Flight termination command sent")
 
-    def publish_offboard_control_heartbeat_signal(self, position_control: bool = True, velocity_control: bool = False):
+    def publish_offboard_control_heartbeat_signal(self, position_control, velocity_control):
         """
             Publish the offboard control mode based on the control type.
             
@@ -178,6 +178,9 @@ class DroneController(Node):
         msg = OffboardControlMode()
         msg.position = position_control
         msg.velocity = velocity_control
+        msg.acceleration = False
+        msg.attitude = False
+        msg.body_rate = False
         msg.timestamp = int(Clock().now().nanoseconds / 1000)
         
         # Publish the control mode message
@@ -210,7 +213,7 @@ class DroneController(Node):
         
     def publish_velocity_control_setpoint(self, target_vx, target_vy, target_vz):
                     
-        self.publish_offboard_control_heartbeat_signal(position_control=True, velocity_control=False)
+        self.publish_offboard_control_heartbeat_signal(position_control=False, velocity_control=True)
         
         """
             Publishes a velocity setpoint to move the drone to a specific (x, y, z) coordinate.
@@ -291,12 +294,12 @@ class DroneController(Node):
         self.previous_error_z = error_z
 
         # Log the current velocity setpoints for debugging
-        self.drone.get_logger().info(
-            f" [POSITION_CORRECTION] Velocity setpoint: ({velocity_x:.2f}, {velocity_y:.2f}, {velocity_z:.2f}) for target ({target_x}, {target_y}, {target_z})"
-        )
+        # self.drone.get_logger().info(
+        #     f" [POSITION_CORRECTION] Velocity setpoint: ({velocity_x:.2f}, {velocity_y:.2f}, {velocity_z:.2f}) for target ({target_x}, {target_y}, {target_z})"
+        # )
 
         
-    def takeoff(self, target_z=-1.5, ascent_velocity=-1.5, altitude_threshold=0.1, velocity_threshold=0.1, acceleration_threshold=0.1, stable_time=2.0):
+    def takeoff(self, target_z, ascent_velocity=-2.5, altitude_threshold=0.1, velocity_threshold=0.1, acceleration_threshold=0.1, stable_time=2.0):
         """
         Command the drone to take off to a target altitude by ascending at a specified velocity 
         until stability is detected.
@@ -363,21 +366,21 @@ class DroneController(Node):
         self.publish_offboard_control_heartbeat_signal(position_control=True, velocity_control=False)
 
         # Set the hold mode flag to True, which we will monitor in the loop
-        self.is_holding_position = True
+        # self.is_holding_position = True
         
         # Start an infinite hold loop
-        while rclpy.ok() and self.is_holding_position:
-            # Publish the position hold setpoint
-            self.publish_position_control_setpoint(target_hold_x, target_hold_y, target_hold_z)
+        # while rclpy.ok():
+        # Publish the position hold setpoint
+        self.publish_position_control_setpoint(target_hold_x, target_hold_y, target_hold_z)
 
-            # Log the holding position message periodically
-            self.get_logger().info(f"[HOLD]Holding position at ({target_hold_x:.2f}, {target_hold_y:.2f}, {target_hold_z:.2f})")
-            
-            # Small delay to prevent overloading the control loop
-            rclpy.spin_once(self, timeout_sec=0.1)
+        # Log the holding position message periodically
+        self.get_logger().info(f"[HOLD]Holding position at ({target_hold_x:.2f}, {target_hold_y:.2f}, {target_hold_z:.2f})")
+        
+        # Small delay to prevent overloading the control loop
+        # rclpy.spin_once(self, timeout_sec=0.1)
 
         # Log exit from hold mode
-        self.get_logger().info("[HOLD]Exiting hold position mode.")
+        # self.get_logger().info("[HOLD]Exiting hold position mode.")
 
     def goto_setpoint(self, target_x, target_y, target_z, position_threshold=0.1, velocity_threshold=0.1, acceleration_threshold=0.1, stable_time=2.0):
         """
@@ -461,10 +464,10 @@ class DroneController(Node):
             vertical_acceleration = self.get_current_acceleration()[2]
 
             # Debugging: Log the vertical descent progress and current metrics
-            self.get_logger().info(f"Vertical velocity: {vertical_velocity}, acceleration: {vertical_acceleration}")
+            self.get_logger().info(f"[LAND]Vertical velocity: {vertical_velocity:.2f} m/s, acceleration: {vertical_acceleration:.2f} m/s^2")
 
             # Check if stability conditions indicate landing (low velocity and acceleration)
-            if   0.0 < abs(vertical_velocity) < 0.01 and 0.0 < abs(vertical_acceleration) < 0.1:
+            if   0.0 < abs(vertical_velocity) < 0.05 and 0.0 < abs(vertical_acceleration) < 0.1:
                 # Start or continue the stability timer if conditions are met
                 if landing_stable_start_time is None:
                     landing_stable_start_time = time.time()
