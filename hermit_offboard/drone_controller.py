@@ -1,6 +1,7 @@
 # drone_controller.py
 import rclpy
 import time
+import math
 from rclpy.node import Node
 from rclpy.clock import Clock
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy, QoSDurabilityPolicy
@@ -148,7 +149,7 @@ class DroneController(Node):
     # def disarm(self):
     #     print("Arm command sent")
     #     msg = VehicleCommand(param1=1.0, command=VehicleCommand.VEHICLE_CMD_COMPONENT_ARM_DISARM)
-    #     self.publish_vehicle_command(msg)
+    #     self.vehicle_command_publisher_.publish(msg)
     #     self.arming_state = False
 
     def flight_termination(self):
@@ -187,8 +188,8 @@ class DroneController(Node):
         self.offboard_control_mode_publisher_.publish(msg)
         
         # Get log information about the control mode
-        control_type = "position" if position_control else "velocity" if velocity_control else "none"
-        self.get_logger().info(f"[PUBLISH_OFFBOARD_CONTROL_HEARTBEAT_SIGNAL] Offboard control mode heartbeat signal set to {control_type}")
+        # control_type = "position" if position_control else "velocity" if velocity_control else "none"
+        # self.get_logger().info(f"[PUBLISH_OFFBOARD_CONTROL_HEARTBEAT_SIGNAL] Offboard control mode heartbeat signal set to {control_type}")
 
     def publish_position_control_setpoint(self, target_x, target_y, target_z):
         
@@ -209,7 +210,7 @@ class DroneController(Node):
         msg.timestamp = int(Clock().now().nanoseconds / 1000)
         self.trajectory_setpoint_publisher_.publish(msg)
         
-        self.get_logger().info(f"[PUB_POSITION_CONTROL_SETPOINT]Position control: Target position: ({target_x:.2f}, {target_y:.2f}, {target_z:.2f})")
+        # self.get_logger().info(f"[PUB_POSITION_CONTROL_SETPOINT]Position control: Target position: ({target_x:.2f}, {target_y:.2f}, {target_z:.2f})")
         
     def publish_velocity_control_setpoint(self, target_vx, target_vy, target_vz):
                     
@@ -226,12 +227,13 @@ class DroneController(Node):
         
         # Construct and publish the velocity command
         msg = TrajectorySetpoint()
+        msg.position = [math.nan, math.nan, math.nan]
         msg.velocity = [target_vx, target_vy, target_vz]  # Set x, y, and z velocities
         msg.yaw = self.get_current_yaw()
         msg.timestamp = int(Clock().now().nanoseconds / 1000)
         self.trajectory_setpoint_publisher_.publish(msg)
 
-        self.get_logger().info(f"[PUB_VELOCITY_CONTROL_SETPOINT]Velocity control: Target velocity: ({target_vx:.2f}, {target_vy:.2f}, {target_vz:.2f})")
+        # self.get_logger().info(f"[PUB_VELOCITY_CONTROL_SETPOINT]Velocity control: Target velocity: ({target_vx:.2f}, {target_vy:.2f}, {target_vz:.2f})")
     
     def position_correction_controller(self, target_x, target_y, target_z):
         """
@@ -285,7 +287,7 @@ class DroneController(Node):
         velocity_y = max(-self.max_horizontal_velocity, min(velocity_y, self.max_horizontal_velocity))
         velocity_z = max(-self.max_vertical_velocity_z, min(velocity_z, self.max_vertical_velocity_z))
 
-        # Publish the velocity setpoint
+        # Publish the velocity setpointland
         self.publish_velocity_control_setpoint(velocity_x, velocity_y, velocity_z)
 
         # Store errors for the next derivative calculation
@@ -294,12 +296,12 @@ class DroneController(Node):
         self.previous_error_z = error_z
 
         # Log the current velocity setpoints for debugging
-        # self.drone.get_logger().info(
+        # self.get_logger().info(
         #     f" [POSITION_CORRECTION] Velocity setpoint: ({velocity_x:.2f}, {velocity_y:.2f}, {velocity_z:.2f}) for target ({target_x}, {target_y}, {target_z})"
         # )
 
         
-    def takeoff(self, target_z, ascent_velocity=-2.5, altitude_threshold=0.1, velocity_threshold=0.1, acceleration_threshold=0.1, stable_time=2.0):
+    def takeoff(self, target_z, ascent_velocity=-0.5, altitude_threshold=0.1, velocity_threshold=0.03, acceleration_threshold=0.03, stable_time=2.0):
         """
         Command the drone to take off to a target altitude by ascending at a specified velocity 
         until stability is detected.
@@ -331,10 +333,13 @@ class DroneController(Node):
             # Debugging: Log the altitude and velocity status
             self.get_logger().info(f"Current Altitude: {current_altitude}, Target Altitude: {target_z}, Altitude Threshold: {altitude_threshold}")
 
-            # Check if altitude is close enough to the target
-            if abs(current_altitude - target_z) <= altitude_threshold:
-                self.get_logger().info("[TAKEOFF]Target altitude reached. Checking for stability.")
+            #TODO: If the current altitude goes above the target_z, the drone will not stop ascending.
 
+            # Check if altitude is close enough to the target
+            if abs(abs(current_altitude) - abs(target_z)) <= altitude_threshold:
+                ascent_velocity = 0.0  # Stop ascending once at target altitude 
+                self.get_logger().info("[TAKEOFF]Target altitude reached. Checking for stability.")
+                
                 # Check stability (low velocity and acceleration)
                 if abs(vertical_velocity) < velocity_threshold and abs(vertical_acceleration) < acceleration_threshold:
                     # Start or check the stable time counter
@@ -382,7 +387,7 @@ class DroneController(Node):
         # Log exit from hold mode
         # self.get_logger().info("[HOLD]Exiting hold position mode.")
 
-    def goto_setpoint(self, target_x, target_y, target_z, position_threshold=0.1, velocity_threshold=0.1, acceleration_threshold=0.1, stable_time=2.0):
+    def goto_setpoint(self, target_x, target_y, target_z, position_threshold=0.05, velocity_threshold=0.03, acceleration_threshold=0.03, stable_time=2.0):
         """
         Command the drone to move to a specific (x, y, z) coordinate and confirm when it arrives.
         
@@ -438,7 +443,7 @@ class DroneController(Node):
             # Small delay to keep the loop from running too fast
             rclpy.spin_once(self, timeout_sec=0.1)
 
-    def land(self, descent_velocity=0.1, velocity_threshold=0.0025, acceleration_threshold=0.001, stable_time=2.0):
+    def land(self, descent_velocity=0.25, velocity_threshold=0.05, acceleration_threshold=0.05, stable_time=2.0):
         """
         Command the drone to land by gradually descending until stability is detected near the ground.
 
@@ -451,7 +456,7 @@ class DroneController(Node):
         # Set offboard mode to velocity control for descent
         self.publish_offboard_control_heartbeat_signal(position_control=False, velocity_control=True)
 
-        # Initialize stable time counter for landing
+        # Initialize stable time counter for landingland
         landing_stable_start_time = None
 
         # Begin controlled descent loop
@@ -467,7 +472,7 @@ class DroneController(Node):
             self.get_logger().info(f"[LAND]Vertical velocity: {vertical_velocity:.2f} m/s, acceleration: {vertical_acceleration:.2f} m/s^2")
 
             # Check if stability conditions indicate landing (low velocity and acceleration)
-            if   0.0 < abs(vertical_velocity) < 0.05 and 0.0 < abs(vertical_acceleration) < 0.1:
+            if   0.0 < abs(vertical_velocity) < velocity_threshold and 0.0 < abs(vertical_acceleration) < acceleration_threshold:
                 # Start or continue the stability timer if conditions are met
                 if landing_stable_start_time is None:
                     landing_stable_start_time = time.time()

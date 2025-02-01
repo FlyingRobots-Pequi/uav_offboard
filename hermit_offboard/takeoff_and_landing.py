@@ -51,6 +51,7 @@ class MissionTaskManager:
 
     def disarm_drone(self):
         self.drone.flight_termination()
+        # self.drone.disarm()
         self.drone.get_logger().info("Mission complete. Drone disarmed.")
 
 def main(args=None):
