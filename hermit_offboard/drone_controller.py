@@ -4,7 +4,8 @@ import time
 from rclpy.node import Node
 from rclpy.clock import Clock
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy, QoSDurabilityPolicy
-from px4_msgs.msg import OffboardControlMode, TrajectorySetpoint, VehicleStatus, VehicleCommand, VehicleLocalPosition
+from px4_msgs.msg import OffboardControlMode, TrajectorySetpoint, VehicleStatus, VehicleCommand, VehicleLocalPosition, BatteryStatus
+import math
 
 class DroneController(Node):
     def __init__(self):
@@ -19,30 +20,36 @@ class DroneController(Node):
         # Create subscribers
         self.status_sub = self.create_subscription(
             VehicleStatus,
-            '/pequi/hermit/fmu/out/vehicle_status',
+            '/fmu/out/vehicle_status',
             self.vehicle_status_callback,
             qos_profile)
         
         self.local_position_sub = self.create_subscription(
             VehicleLocalPosition,
-            '/pequi/hermit/fmu/out/vehicle_local_position',
+            '/fmu/out/vehicle_local_position',
             self.vehicle_local_position_callback,
             qos_profile)
         
+        self.battery_sub = self.create_subscription(
+            BatteryStatus,
+            '/fmu/out/battery_status',
+            self.battery_status_callback,
+            qos_profile)
+
         # Create publishers
         self.offboard_control_mode_publisher_ = self.create_publisher(
             OffboardControlMode,
-            '/pequi/hermit/fmu/in/offboard_control_mode', 
+            '/fmu/in/offboard_control_mode', 
             qos_profile)
         
         self.trajectory_setpoint_publisher_ = self.create_publisher(
             TrajectorySetpoint,
-            '/pequi/hermit/fmu/in/trajectory_setpoint',
+            '/fmu/in/trajectory_setpoint',
             qos_profile)
         
         self.vehicle_command_publisher_ = self.create_publisher(
             VehicleCommand,
-            '/pequi/hermit/fmu/in/vehicle_command',
+            '/fmu/in/vehicle_command',
             qos_profile)   
 
         # Drone state variables
@@ -64,14 +71,25 @@ class DroneController(Node):
         self.goto = True
         self.tolerance = 0.05
         self.landing_altitude = -0.1
-        self.takeoff_altitude = -1.0
+        self.takeoff_altitude = -3.0
         self.landing_and_takeoff_sequence = False
         self.land_start_time = None
         self.landed_x = 0
         self.landed_y = 0
         self.landed_z = 0
-            
+
+        self.initial_yaw = None
+        self.target_yaw = None
+
+
+        self.reached_xy = False
+        self.reached_z = False
+        self.reached_xyz = False
+        self.reached_yaw = False
+        self.reached_pose = False
+
         self.nav_state = VehicleStatus.NAVIGATION_STATE_MAX
+        self.low_battery = False
 
     def engage_offBoard_mode(self):
         print('Offboard mode command sent')
@@ -158,7 +176,6 @@ class DroneController(Node):
 
         self.publish_offboard_control_mode()
 
-
         msg = TrajectorySetpoint()
 
         # Set a threshold to detect when the drone is close to the ground (e.g., 0.1 meters)
@@ -185,13 +202,81 @@ class DroneController(Node):
                 self.landed_x = self.current_x
                 self.landed_y = self.current_y
                 self.landed_z = self.current_altitude
-                self.detected_land = True  # Flag indicating landing detected
-                del self.landing_detection_start_time  # Reset timer for future use
+                self.detected_land = True 
+                del self.landing_detection_start_time
             else:
                 self.detected_land = False
 
-        msg.yaw = self.current_yaw  # Maintain current yaw
+        msg.yaw = self.target_yaw
         self.publish_trajectory_setpoint_publisher(msg)
+
+    def publishing_setpoint(self, target_x, target_y, target_z, target_yaw=None):
+        self.publish_offboard_control_mode()
+        if target_yaw is None:
+            target_yaw = self.target_yaw
+
+        new_x, new_y = self._compute_xy_step(target_x, target_y)
+        new_z = self._compute_z_step(target_z)
+        new_yaw = self._compute_yaw_step(target_yaw)
+
+        self.reached_xyz = self.reached_z and self.reached_xy
+        self.reached_pose = self.reached_xyz and self.reached_yaw
+
+        msg = TrajectorySetpoint()
+        msg.position = [new_x, new_y, new_z]
+        msg.yaw = new_yaw
+        self.publish_trajectory_setpoint_publisher(msg)
+
+        print(f"Moving... XYZ: ({self.current_x:.3f}, {self.current_y:.3f}, {self.current_altitude:.3f}) → "
+            f"({target_x:.3f}, {target_y:.3f}, {target_z:.3f}),  "
+            f"Current Yaw: {self.current_yaw:.3f}, Target Yaw: {target_yaw:.3f}, "
+            f"ΔYaw: {(target_yaw - self.current_yaw):.3f}")
+
+    def _compute_xy_step(self, target_x, target_y):
+        step_xy = 0.3
+        threshold_xy = 0.05
+        dx = target_x - self.current_x
+        dy = target_y - self.current_y
+        distance_xy = (dx**2 + dy**2)**0.5
+
+        if distance_xy < threshold_xy:
+            self.reached_xy = True
+            return target_x, target_y
+        else:
+            self.reached_xy = False
+            dir_x = dx / distance_xy
+            dir_y = dy / distance_xy
+            return self.current_x + step_xy * dir_x, self.current_y + step_xy * dir_y
+
+    def _compute_z_step(self, target_z):
+        step_z = 0.3
+        threshold_z = 0.05
+        dz = target_z - self.current_altitude
+
+        if abs(dz) < threshold_z:
+            self.reached_z = True
+            return target_z
+        else:
+            self.reached_z = False
+            return self.current_altitude + step_z * (dz / abs(dz))
+
+    def _compute_yaw_step(self, target_yaw):
+        yaw_step = 0.1
+        yaw_threshold = 0.015
+
+        def normalize(angle):
+            return math.atan2(math.sin(angle), math.cos(angle)) 
+        
+        delta_yaw = normalize(target_yaw - self.current_yaw)
+
+        if abs(delta_yaw) < yaw_threshold:
+            self.reached_yaw = True
+            return target_yaw
+        else:
+            self.reached_yaw = False
+            direction = delta_yaw / abs(delta_yaw)
+            return normalize(self.current_yaw + direction * yaw_step)
+
 
     def landing_and_takeoff(self, x, y, z):
 
@@ -234,10 +319,15 @@ class DroneController(Node):
         if tolerance_xy > x > -tolerance_xy:
             if tolerance_xy > y > -tolerance_xy:
                 if (tolerance_z + self.landing_altitude)  > z > (self.landing_altitude - tolerance_z):
-                    return True;
+                    return True
         else:
             return False
-        
+
+    def battery_status_callback(self, msg: BatteryStatus):
+        self.low_battery = msg.remaining < 0.15
+        if self.low_battery:
+            self.get_logger().warn(f'Battery low: {msg.remaining * 100:.1f}%')
+
     def publish_trajectory_setpoint_publisher(self, msg):
         msg.timestamp = int(Clock().now().nanoseconds / 1000)
         self.trajectory_setpoint_publisher_.publish(msg) 
