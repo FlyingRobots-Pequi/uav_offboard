@@ -34,11 +34,6 @@ class MissionTaskManager(Node):
         self.hold_time = 3
         self.takeoff_altitude = -1.5
 
-        for i in range(len(self.search_points)):
-            point = self.search_points[i]
-            if len(point) >= 2:
-                point[0], point[1] = point[1], point[0]  # swap x <-> y
-
     def log(self, message: str):
         self.get_logger().info(message)
         self.log_pub.publish(String(data=message))
