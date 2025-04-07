@@ -31,8 +31,8 @@ class MissionTaskManager(Node):
         # self.search_points = self.rightward_setpoints
 
         self.hold_start_time = None
-        self.hold_time = 3
-        self.takeoff_altitude = -1.5
+        self.hold_time = 2
+        self.takeoff_altitude = -1.0
 
     def log(self, message: str):
         self.get_logger().info(message)
@@ -59,7 +59,7 @@ class MissionTaskManager(Node):
 
     def arm_drone(self):
         self.drone.engage_offBoard_mode()
-        self.drone.arm()
+        # self.drone.arm()
         self.log(f"Arm command sent")
 
         if self.drone.current_yaw is not None:

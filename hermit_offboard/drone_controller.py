@@ -30,11 +30,11 @@ class DroneController(Node):
             self.vehicle_local_position_callback,
             qos_profile)
         
-        self.battery_sub = self.create_subscription(
-            BatteryStatus,
-            '/pequi/hermit/fmu/out/battery_status',
-            self.battery_status_callback,
-            qos_profile)
+        # self.battery_sub = self.create_subscription(
+        #     BatteryStatus,
+        #     '/pequi/hermit/fmu/out/battery_status',
+        #     self.battery_status_callback,
+        #     qos_profile)
 
         # Create publishers
         self.offboard_control_mode_publisher_ = self.create_publisher(
@@ -71,15 +71,15 @@ class DroneController(Node):
         self.goto = True
         self.tolerance = 0.05
         self.landing_altitude = -0.1
-        self.takeoff_altitude = -3.0
+        self.takeoff_altitude = -1.0
         self.landing_and_takeoff_sequence = False
         self.land_start_time = None
         self.landed_x = 0
         self.landed_y = 0
         self.landed_z = 0
 
-        self.initial_x = None
-        self.initial_y = None
+        self.initial_x = 0.0
+        self.initial_y = 0.0
         self.initial_yaw = None
         self.target_yaw = None
 
@@ -90,8 +90,7 @@ class DroneController(Node):
         self.reached_pose = False
 
         self.nav_state = VehicleStatus.NAVIGATION_STATE_MAX
-        self.low_battery = False
-        self.orbit_active = False
+        # self.low_battery = False
 
     def engage_offBoard_mode(self):
         print('Offboard mode command sent')
@@ -267,7 +266,7 @@ class DroneController(Node):
             self._yaw_rotation_initialized = False
 
     def _compute_yaw_step_incremental(self):
-        yaw_step = 0.1  # rad
+        yaw_step = 0.030  # rad
         current = self.current_yaw
         last = self._yaw_last
 
@@ -338,22 +337,22 @@ class DroneController(Node):
     def vehicle_status_callback(self, msg):
         self.nav_state = msg.nav_state
 
-    def failsafe_vehicle_startup_position(self, x, y, z):
+    # def failsafe_vehicle_startup_position(self, x, y, z):
 
-        tolerance_xy = 0.2
-        tolerance_z = self.tolerance
+    #     tolerance_xy = 0.2
+    #     tolerance_z = self.tolerance
         
-        if tolerance_xy > x > -tolerance_xy:
-            if tolerance_xy > y > -tolerance_xy:
-                if (tolerance_z + self.landing_altitude)  > z > (self.landing_altitude - tolerance_z):
-                    return True
-        else:
-            return False
+    #     if tolerance_xy > x > -tolerance_xy:
+    #         if tolerance_xy > y > -tolerance_xy:
+    #             if (tolerance_z + self.landing_altitude)  > z > (self.landing_altitude - tolerance_z):
+    #                 return True
+    #     else:
+    #         return False
 
-    def battery_status_callback(self, msg: BatteryStatus):
-        self.low_battery = msg.remaining < 0.15
-        if self.low_battery:
-            self.get_logger().warn(f'Battery low: {msg.remaining * 100:.1f}%')
+    # def battery_status_callback(self, msg: BatteryStatus):
+    #     self.low_battery = msg.remaining < 0.15
+    #     if self.low_battery:
+    #         self.get_logger().warn(f'Battery low: {msg.remaining * 100:.1f}%')
 
     def publish_trajectory_setpoint_publisher(self, msg):
         msg.timestamp = int(Clock().now().nanoseconds / 1000)
