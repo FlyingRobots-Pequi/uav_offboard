@@ -13,51 +13,12 @@ class MissionTaskManager:
         self.hold_start_time = None
         self.takeoff_altitude = -1.0
         
-        self.z1 = -1.20
-        self.z2 = -1.70
-        self.z3 = -2.2
-        self.z4 = -2.8
-        
-        self.x1 = 6.0
-        
-        self.y1 = -2.8
-        self.y2 = -3.4
-        self.y3 = -3.9
-        self.y4 = -4.4
-        self.y5 = -5.10
-        
-        
         self.search_points = [
-            [1.0, -1.0, -1.5],
-            [1.0, self.y1, -1.5],
-            [self.x1, self.y1, -1.5],
-            [self.x1, self.y1, self.z1],
-            
-            [self.x1, self.y1, self.z4],
-            [self.x1, self.y2, self.z4],
-            [self.x1, self.y3, self.z4],
-            [self.x1, self.y4, self.z4],
-            [self.x1, self.y5, self.z4],
-            
-            [self.x1, self.y5, self.z3],
-            [self.x1, self.y4, self.z3],
-            [self.x1, self.y3, self.z3],
-            [self.x1, self.y2, self.z3],
-            [self.x1, self.y1, self.z3],
-            
-            [self.x1, self.y1, self.z2],
-            [self.x1, self.y2, self.z2],
-            [self.x1, self.y3, self.z2],
-            [self.x1, self.y4, self.z2],
-            [self.x1, self.y5, self.z2],  
-            
-            [self.x1, self.y5, self.z1],
-            [self.x1, self.y4, self.z1],
-            [self.x1, self.y3, self.z1],
-            [self.x1, self.y2, self.z1],
-            [self.x1, self.y1, self.z1],  
-                
-            [4.0, -4.0, -1,5]  
+            [0.0, 0.0, -1.5],
+            [1.5, 0.0, -1.5],
+            [1.5, -1.5, -1.5],
+            [0.0, -1.5, -1.5],
+            [0.0, 0.0, -1.5]
         ]
 
     def execute_mission_step(self):

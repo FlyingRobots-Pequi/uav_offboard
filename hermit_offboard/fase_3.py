@@ -12,19 +12,19 @@ class MissionTaskManager:
         self.state = "ARM"
         self.search_point_index = 0
         self.hold_start_time = None
-        self.takeoff_altitude = -1.5
+        self.takeoff_altitude = -1.0
         
-        self.base_A = [-0.5, -5.3, -0.3]
-        self.base_B = [2.23, -3.17, -0.3]
-        self.base_C = [5.3, -3.3, -0.3]
-        self.base_D = [-0.29, -2.8, -1.3]
-        self.base_E = [5.8, -0.37, -1.5]
+        self.base_A = [3.0, -0.5, -1.15]
+        self.base_B = [2.0, -1.5, -1.15]
+        self.base_C = [0.0, -1.5, -1.15]
+        self.base_D = [3.0, -3.5, -1.15]
+        self.base_E = [1.0, -3.5, -1.5]
         
         self.search_points = [
-            self.base_D
+            self.base_A
         ]
         self.counter_qr_code_appended = 0
-        self.visited_bases = set(["D"]) 
+        self.visited_bases = set(["A"]) 
         
         # Set up QR code detection subscriber
         self.qr_code_subscriber = self.drone.create_subscription(
@@ -137,7 +137,7 @@ class MissionTaskManager:
             self.state = "SEARCH_POINTS"  # Return to SEARCH_POINTS after holding
 
     def final_return(self):
-        self.drone.goto_setpoint(0.0, 0.0, -1.5)
+        self.drone.goto_setpoint(0.0, 0.0, -1.0)
         print("Returning to takeoff base at (0.0, 0.0)")
         if not self.drone.goto:
             self.drone.detected_land = False

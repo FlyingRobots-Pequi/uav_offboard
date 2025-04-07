@@ -4,8 +4,6 @@ import yaml
 import rclpy
 from hermit_offboard.drone_controller import DroneController
 import os
-from std_msgs.msg import String
-import math
 
 class MissionTaskManager:
     def __init__(self, drone_controller):
@@ -13,18 +11,57 @@ class MissionTaskManager:
         self.state = "ARM"
         self.search_point_index = 0
         self.hold_start_time = None
-        self.takeoff_altitude = -1.0
+        self.takeoff_altitude = -1.5
+        
+        self.z1 = -3.0
 
+        self.x0 = 0.8
+        self.x1 = 3.0
+        self.x2 = 6.0
+        self.x3 = 9.0
+        self.x4 = 11.2
+
+        self.y_m = 0.0
+        self.y_l = 2.7
+        self.y_r = -2.7
+
+        # Path1
+
+        # self.search_points = [
+        #     [self.x0, self.y_m, self.z1],
+        #     [self.x1, self.y_m, self.z1],
+        #     [self.x1, self.y_m, self.z1],
+        #     [self.x2, self.y_m, self.z1],
+        #     [self.x1, self.y_m, self.z1],
+        #     [self.x2, self.y_m, self.z1],
+        #     [self.x0, self.y_m, self.z1]
+        # ]
+
+        # Orbit clock-wise
         self.search_points = [
-            [0.0, 0.0, self.takeoff_altitude, math.pi / 2],
-            [0.0, 0.0, self.takeoff_altitude, 0.0]
+            [self.x0, self.y_m, self.z1],
+            [self.x1, self.y_l, self.z1],
+            [self.x2, self.y_l, self.z1],
+            [self.x3, self.y_l, self.z1],
+            [self.x4, self.y_m, self.z1],
+            [self.x3, self.y_r, self.z1],
+            [self.x2, self.y_r, self.z1],
+            [self.x1, self.y_r, self.z1],
+            [self.x0, self.y_m, self.z1]
         ]
 
-    # Swap x and y in simulation (only once, no code change needed)
-        # for i in range(len(self.search_points)):
-        #     point = self.search_points[i]
-        #     if len(point) >= 2:
-        #         point[0], point[1] = point[1], point[0]  # swap x <-> y
+        # Orbit counter clock-wise
+        # self.search_points = [
+        #     [self.x0, self.y_m, self.z1],
+        #     [self.x1, -self.y_l, self.z1],
+        #     [self.x2, -self.y_l, self.z1],
+        #     [self.x3, -self.y_l, self.z1],
+        #     [self.x4, -self.y_m, self.z1],
+        #     [self.x3, -self.y_r, self.z1],
+        #     [self.x2, -self.y_r, self.z1],
+        #     [self.x1, -self.y_r, self.z1],
+        #     [self.x0, self.y_m, self.z1]
+        # ]
 
     def execute_mission_step(self):
         if self.state == "ARM":
@@ -60,63 +97,52 @@ class MissionTaskManager:
         else:
             print("Waiting for current_yaw to be available...")
 
-
     def takeoff_drone(self):
-        self.drone.publishing_setpoint(0.0, 0.0, self.takeoff_altitude, self.drone.target_yaw)
-        if self.drone.reached_pose:
+        self.drone.publish_takeoff_setpoint(0.0, 0.0, self.takeoff_altitude)
+        if self.drone.takeoff_success:
             self.hold_start_time = time.time()
-            self.drone.reached_pose = False
             self.state = "HOLD"
 
     def hold_position(self):
-        self.drone.publishing_setpoint(0.0, 0.0, self.takeoff_altitude)
+        self.drone.hover(0.0, 0.0, self.takeoff_altitude)
         print("Holding at takeoff position")
-        if time.time() - self.hold_start_time >= 5:
+        if time.time() - self.hold_start_time >= 3:
             self.state = "SEARCH_POINTS"
 
-    # FUNCIONA MAS TEM BUG
     def navigate_search_points(self):
+        # Navigate through search points
         if self.search_point_index < len(self.search_points):
             point = self.search_points[self.search_point_index]
-            x, y, z = point[:3]
+            self.drone.goto_setpoint(*point)
+            print("Going to search point at setpoint: ", point)
 
-            if len(point) > 3 and point[3] is not None:
-                yaw_offset = point[3]
-                yaw_absolute = math.atan2(math.sin(self.drone.initial_yaw + yaw_offset), math.cos(self.drone.initial_yaw + yaw_offset))
-                self.drone.target_yaw = yaw_absolute
-            else:
-                yaw_absolute = self.drone.target_yaw
-
-            self.drone.publishing_setpoint(x, y, z, yaw_absolute)
-            print(f"Navigating to search point {self.search_point_index}: {point}")
-
-            if self.drone.reached_pose:
-                self.search_point_index += 1
-                self.hold_start_time = time.time()
-                self.drone.reached_pose = False
-                self.state = "HOLD_AT_SEARCH_POINT"
+            # Check if the drone has reached the setpoint
+            if not self.drone.goto:
+                self.search_point_index += 1  # Move to the next search point
+                self.hold_start_time = time.time()  # Start hold timer
+                self.state = "HOLD_AT_SEARCH_POINT"  # Transition to hold state
+                self.drone.goto = True  # Reset the goto flag
         else:
             self.state = "FINAL_RETURN"
 
     def hold_at_search_point(self):
+        # Hold the drone at the current search point for 5 seconds
         point = self.search_points[self.search_point_index - 1]
-        x, y, z = point[:3]
-        self.drone.publishing_setpoint(x, y, z)
+        self.drone.hover(*point)
         print(f"Holding at search point {self.search_point_index - 1} position: {point}")
         
-        if time.time() - self.hold_start_time >= 5:
-            self.state = "SEARCH_POINTS"
+        if time.time() - self.hold_start_time >= 3:
+            self.state = "SEARCH_POINTS"  # Return to SEARCH_POINTS after holding
 
     def final_return(self):
-        self.drone.publishing_setpoint(0.0, 0.0, self.takeoff_altitude, self.drone.target_yaw)
-        if self.drone.reached_pose:
+        self.drone.goto_setpoint(0.0, 0.0, self.takeoff_altitude)
+        print("Returning to takeoff base at (0.0, 0.0)")
+        if not self.drone.goto:
             self.drone.detected_land = False
-            self.drone.reached_pose = False
             self.state = "FINAL_LAND"
 
     def final_land(self):
         self.drone.publish_landing_setpoint(0.0, 0.0)
-        print("Descending for final landing...")
         if self.drone.detected_land:
             self.state = "DISARM"
 
@@ -124,9 +150,6 @@ class MissionTaskManager:
         self.drone.disarm()
         self.drone.get_logger().info("Mission complete. Drone disarmed.")
 
-    # def battery_failsafe(self):
-    #     if self.drone.low_battery:
-    #         self.state = "FINAL_RETURN"
 
 def main(args=None):
     rclpy.init(args=args)

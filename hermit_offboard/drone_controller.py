@@ -20,36 +20,36 @@ class DroneController(Node):
         # Create subscribers
         self.status_sub = self.create_subscription(
             VehicleStatus,
-            '/fmu/out/vehicle_status',
+            '/pequi/hermit/fmu/out/vehicle_status',
             self.vehicle_status_callback,
             qos_profile)
         
         self.local_position_sub = self.create_subscription(
             VehicleLocalPosition,
-            '/fmu/out/vehicle_local_position',
+            '/pequi/hermit/fmu/out/vehicle_local_position',
             self.vehicle_local_position_callback,
             qos_profile)
         
-        self.battery_sub = self.create_subscription(
-            BatteryStatus,
-            '/fmu/out/battery_status',
-            self.battery_status_callback,
-            qos_profile)
+        # self.battery_sub = self.create_subscription(
+        #     BatteryStatus,
+        #     '/pequi/hermit/fmu/out/battery_status',
+        #     self.battery_status_callback,
+        #     qos_profile)
 
         # Create publishers
         self.offboard_control_mode_publisher_ = self.create_publisher(
             OffboardControlMode,
-            '/fmu/in/offboard_control_mode', 
+            '/pequi/hermit/fmu/in/offboard_control_mode', 
             qos_profile)
         
         self.trajectory_setpoint_publisher_ = self.create_publisher(
             TrajectorySetpoint,
-            '/fmu/in/trajectory_setpoint',
+            '/pequi/hermit/fmu/in/trajectory_setpoint',
             qos_profile)
         
         self.vehicle_command_publisher_ = self.create_publisher(
             VehicleCommand,
-            '/fmu/in/vehicle_command',
+            '/pequi/hermit/fmu/in/vehicle_command',
             qos_profile)   
 
         # Drone state variables
@@ -89,7 +89,7 @@ class DroneController(Node):
         self.reached_pose = False
 
         self.nav_state = VehicleStatus.NAVIGATION_STATE_MAX
-        self.low_battery = False
+        # self.low_battery = False
 
     def engage_offBoard_mode(self):
         print('Offboard mode command sent')
@@ -146,7 +146,7 @@ class DroneController(Node):
 
         self.publish_offboard_control_mode()
 
-        msg = TrajectorySetpoint(position=[x, y, z], yaw=self.current_yaw)
+        msg = TrajectorySetpoint(position=[x, y, z], yaw=self.target_yaw)
         msg.timestamp = int(Clock().now().nanoseconds / 1000)
         self.trajectory_setpoint_publisher_.publish(msg)
         if abs(self.current_x - x) < self.tolerance and abs(self.current_y - y) < self.tolerance and abs(self.current_altitude - z) < self.tolerance:
@@ -169,7 +169,7 @@ class DroneController(Node):
             self.get_logger().info("Takeoff altitude reached successfully.")
         else: 
             self.takeoff_success = False
-        msg.yaw = self.current_yaw  # Keep the yaw fixed
+        msg.yaw = self.target_yaw  # Keep the yaw fixed
         self.publish_trajectory_setpoint_publisher(msg)
 
     def publish_landing_setpoint(self, x, y):
@@ -261,7 +261,7 @@ class DroneController(Node):
             return self.current_altitude + step_z * (dz / abs(dz))
 
     def _compute_yaw_step(self, target_yaw):
-        yaw_step = 0.1
+        yaw_step = 0.01
         yaw_threshold = 0.015
 
         def normalize(angle):
@@ -323,10 +323,10 @@ class DroneController(Node):
         else:
             return False
 
-    def battery_status_callback(self, msg: BatteryStatus):
-        self.low_battery = msg.remaining < 0.15
-        if self.low_battery:
-            self.get_logger().warn(f'Battery low: {msg.remaining * 100:.1f}%')
+    # def battery_status_callback(self, msg: BatteryStatus):
+    #     self.low_battery = msg.remaining < 0.15
+    #     if self.low_battery:
+    #         self.get_logger().warn(f'Battery low: {msg.remaining * 100:.1f}%')
 
     def publish_trajectory_setpoint_publisher(self, msg):
         msg.timestamp = int(Clock().now().nanoseconds / 1000)
