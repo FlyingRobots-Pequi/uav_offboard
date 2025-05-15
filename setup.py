@@ -25,6 +25,7 @@ setup(
             'fase_2 = hermit_offboard.fase_2:main',
             'fase_3 = hermit_offboard.fase_3:main',
             'tdp = hermit_offboard.tdp:main',
+            'search_position = hermit_offboard.search_position:main',
             'line_trajectory = hermit_offboard.line_trajectory:main',
             'drone_controller = hermit_offboard.drone_controller:main',
             'takeoff_and_landing = hermit_offboard.takeoff_and_landing:main',
