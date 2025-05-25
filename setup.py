@@ -1,6 +1,7 @@
 from setuptools import find_packages, setup
-
-package_name = 'hermit_offboard'
+import os
+from glob import glob
+package_name = 'uav_offboard'
 
 setup(
     name=package_name,
@@ -10,7 +11,8 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        ('share/' + package_name + '/config', ['config/goto_setpoints.yaml']),
+        # ('share/' + package_name + '/config', ['config/*.yaml']),
+        (os.path.join('share', package_name, 'config'), glob('config/*.yaml')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -21,15 +23,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'fase_1 = hermit_offboard.fase_1:main',
-            'fase_2 = hermit_offboard.fase_2:main',
-            'fase_3 = hermit_offboard.fase_3:main',
-            'tdp = hermit_offboard.tdp:main',
-            'search_position = hermit_offboard.search_position:main',
-            'line_trajectory = hermit_offboard.line_trajectory:main',
-            'drone_controller = hermit_offboard.drone_controller:main',
-            'takeoff_and_landing = hermit_offboard.takeoff_and_landing:main',
-            'register_setpoints = scripts.register_setpoints:main',
+            # 'heartbeat_node = uav_offboard.heartbeat_node:main',
+            'flight_manager_node = uav_offboard.flight_manager_node:main',
         ],
     },
 )

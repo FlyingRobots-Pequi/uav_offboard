@@ -1,0 +1,252 @@
+takeoff_state:
+    0: "Empty"
+    1: "Ready for takeoff"
+    2: "During ramp-up"
+    3: "Climbing"
+    4: "Flight"
+    5: "Rejected or failed"
+
+vehicle_status:
+  arming_state:
+    1: "Vehicle Disarmed"
+    2: "Vehicle Armed"
+  latest_disarming_reason:
+    0: "Transition to Standby"
+    1: "Stick Gesture"
+    2: "RC Switch"
+    3: "Command Internal"
+    4: "Command External"
+    5: "Mission Start"
+    6: "Safety Button"
+    7: "Auto Disarm After Landing"
+    8: "Auto Disarm Before Takeoff"
+    9: "Kill Switch"
+    10: "Lockdown"
+    11: "Failure Detector"
+    12: "Shutdown"
+    13: "Unit Test"
+  nav_state:
+    0: "Manual"
+    1: "Altitude Control"
+    2: "Position Control"
+    3: "Auto Mission"
+    4: "Auto Loiter"
+    5: "Auto RTL"
+    6: "Position Slow"
+    7: "Free Mode 5"
+    8: "Free Mode 4"
+    9: "Free Mode 3"
+    10: "Acro"
+    11: "Free Mode 2"
+    12: "Descend"
+    13: "Termination"
+    14: "Offboard"
+    15: "Stabilized"
+    16: "Free Mode 1"
+    17: "Auto Takeoff"
+    18: "Auto Land"
+    19: "Auto Follow Target"
+    20: "Auto Precision Land"
+    21: "Orbit"
+    22: "Auto VTOL Takeoff"
+    23: "External Mode 1"
+    24: "External Mode 2"
+    25: "External Mode 3"
+    26: "External Mode 4"
+    27: "External Mode 5"
+    28: "External Mode 6"
+    29: "External Mode 7"
+    30: "External Mode 8"
+    31: "Max"
+  failure_detector_status:
+    0: "No Failure"
+    1: "Roll Failure"
+    2: "Pitch Failure"
+    4: "Altitude Failure"
+    8: "External System Failure"
+    16: "Arming ESC Failure"
+    32: "Battery Failure"
+    64: "Imbalanced Propeller"
+    128: "Motor Failure"
+  failsafe:
+    0: "System OK"
+    1: "System in Failsafe State"
+  safety_off:
+    0: "Safety button is on"
+    1: "Safety button is off"
+  pre_flight_checks_pass:
+    0: "Pre-flight checks not passed"
+    1: "Pre-flight checks passed"
+
+cb_failsafe_flags:
+  attitude_invalid:
+    0: "Attitude OK"
+    1: "Attitude Invalid"
+  local_altitude_invalid:
+    0: "Local Altitude OK"
+    1: "Local Altitude Invalid"
+  local_position_invalid:
+    0: "Local Position OK"
+    1: "Local Position Invalid"
+  local_position_invalid_relaxed:
+    0: "Relaxed Local Position OK"
+    1: "Relaxed Local Position Invalid"
+  local_velocity_invalid:
+    0: "Local Velocity OK"
+    1: "Local Velocity Invalid"
+  global_position_invalid:
+    0: "Global Position OK"
+    1: "Global Position Invalid"
+  auto_mission_missing:
+    0: "Auto Mission Available"
+    1: "Auto Mission Missing"
+  offboard_control_signal_lost:
+    0: "Offboard Control Signal OK"
+    1: "Offboard Control Signal Lost"
+  home_position_invalid:
+    0: "Home Position Set"
+    1: "Home Position Invalid"
+  manual_control_signal_lost:
+    0: "Manual Control Signal OK"
+    1: "Manual Control Signal Lost"
+  gcs_connection_lost:
+    0: "GCS Connected"
+    1: "GCS Connection Lost"
+  battery_low_remaining_time:
+    0: "Remaining Flight Time OK"
+    1: "Low Remaining Flight Time"
+  mission_failure:
+    0: "Mission Execution OK"
+    1: "Mission Failure"
+  flight_time_limit_exceeded:
+    0: "Flight Time Within Limit"
+    1: "Flight Time Limit Exceeded"
+  local_position_accuracy_low:
+    0: "Local Position Accuracy OK"
+    1: "Local Position Accuracy Low"
+  fd_critical_failure:
+    0: "No Critical Failure"
+    1: "Critical Failure Detected"
+  fd_esc_arming_failure:
+    0: "ESC Arming OK"
+    1: "ESC Arming Failure"
+  fd_imbalanced_prop:
+    0: "Propeller Balanced"
+    1: "Imbalanced Propeller"
+  fd_motor_failure:
+    0: "Motor Status OK"
+    1: "Motor Failure Detected"
+
+vehicle_command_ack:
+  result:
+    0: "Command Accepted and Executed"
+    1: "Command Temporarily Rejected"
+    2: "Command Permanently Denied"
+    3: "Command Unsupported Command"
+    4: "Command Execution Failed"
+    5: "Command In Progress"
+    6: "Command Cancelled"
+  arm_auth_denied_reason:
+    0: "Generic Denial"
+    1: "No Specific Reason"
+    2: "Invalid Waypoint"
+    3: "Timeout"
+    4: "Airspace in Use"
+    5: "Bad Weather"
+
+offboard_control_mode:
+  position:
+    0: "Position Offboard Control Disabled"
+    1: "Position Offboard Control  Enabled"
+  velocity:
+    0: "Velocity Offboard Control Disabled"
+    1: "Velocity Offboard Control Enabled"
+  acceleration:
+    0: "Acceleration Offboard Control Disabled"
+    1: "Acceleration Offboard Control Enabled"
+  attitude:
+    0: "Attitude Offboard Control Disabled"
+    1: "Attitude Offboard Control Enabled"
+  body_rate:
+    0: "Body Rate Control Disabled"
+    1: "Body Rate Control Enabled"
+  thrust_and_torque:
+    0: "Thrust and Torque Control Disabled"
+    1: "Thrust and Torque Control Enabled"
+  direct_actuator:
+    0: "Direct Actuator Control Disabled"
+    1: "Direct Actuator Control Enabled"
+
+land_detected:
+  freefall:
+    0: "Stable"
+    1: "Free-Fall Detected"
+  ground_contact:
+    0: "No Ground Contact"
+    1: "Ground Contact Detected"
+  maybe_landed:
+    0: "Likely Airborne"
+    1: "Maybe Landed"
+  landed:
+    0: "In Air"
+    1: "Landed"
+  in_ground_effect:
+    0: "No Ground Effect"
+    1: "Possible Ground Effect"
+  in_descend:
+    0: "Not Descending"
+    1: "Descending"
+  has_low_throttle:
+    0: "Throttle Normal"
+    1: "Low Throttle"
+  vertical_movement:
+    0: "No Vertical Movement"
+    1: "Vertical Movement Detected"
+  horizontal_movement:
+    0: "No Horizontal Movement"
+    1: "Horizontal Movement Detected"
+  rotational_movement:
+    0: "No Rotational Movement"
+    1: "Rotational Movement Detected"
+  close_to_ground_or_skipped_check:
+    0: "High Altitude / Normal Check"
+    1: "Close to Ground or Check Skipped"
+  at_rest:
+    0: "In Motion"
+    1: "At Rest"
+
+battery_status:
+  connected:
+    0: "Battery Disconnected"
+    1: "Battery Connected"
+  warning:
+    0: "No Warning"
+    1: "Low Voltage Warning"
+    2: "Critical Voltage Warning"
+    3: "Emergency Voltage Warning"
+    4: "Battery Failed"
+    6: "Battery Unhealthy"
+    7: "Battery Charging"
+  source:
+    0: "Power Module"
+    1: "External"
+    2: "ESCs"
+  is_powering_off:
+    0: "Normal Power State"
+    1: "Powering Off Imminent"
+  is_required:
+    0: "Not Required for Arming"
+    1: "Required for Arming"
+  faults:
+    0: "No Faults"
+    1: "Deep Discharge"
+    2: "Voltage Spikes"
+    4: "Cell Failure"
+    8: "Over-Current"
+    16: "Over-Temperature"
+    32: "Under-Temperature"
+    64: "Incompatible Voltage"
+    128: "Incompatible Firmware"
+    256: "Incompatible Model"
+    512: "Hardware Failure"
+    1024: "Failed to Arm"
