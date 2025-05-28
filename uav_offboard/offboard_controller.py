@@ -57,9 +57,7 @@ class OffboardController():
         # control_type = "position" if position_control else "velocity" if velocity_control else "none"
         # self.node.get_logger().info(f"[PUBLISH_OFFBOARD_CONTROL_HEARTBEAT_SIGNAL] Offboard control mode heartbeat signal set to {control_type}")
 
-    def publish_position_control_setpoint(self, target_x, target_y, target_z):
-        
-        self.publish_offboard_control_heartbeat_signal(position_control=True, velocity_control=False)
+    def publish_position_control_setpoint(self, target_x, target_y, target_z, yaw=0.0):
         
         """
             Publishes a position setpoint to move the drone to a specific (x, y, z) coordinate.
@@ -72,13 +70,13 @@ class OffboardController():
         
         msg = TrajectorySetpoint()
         msg.position = [target_x, target_y, target_z]  # x, y, and z positions
-        msg.yaw = 0.0
+        msg.yaw = yaw
         msg.timestamp = int(Clock().now().nanoseconds / 1000)
         self.trajectory_setpoint_publisher_.publish(msg)
         
         self.node.get_logger().info(f"[PUB_POSITION_CONTROL_SETPOINT]Position control: Target position: ({target_x:.2f}, {target_y:.2f}, {target_z:.2f})")
         
-    def publish_velocity_control_setpoint(self, target_vx, target_vy, target_vz):
+    def publish_velocity_control_setpoint(self, target_vx, target_vy, target_vz, yaw=0.0):
 
         """
             Publishes a velocity setpoint to move the drone to a specific (x, y, z) coordinate.
@@ -89,15 +87,11 @@ class OffboardController():
                 target_vz (float): Target vz-velocity in meters/second.
         """
 
-        self.publish_offboard_control_heartbeat_signal(position_control=False, velocity_control=True)
-        
- 
-        
         # Construct and publish the velocity command
         msg = TrajectorySetpoint()
         msg.position = [math.nan, math.nan, math.nan]
         msg.velocity = [target_vx, target_vy, target_vz]  # Set x, y, and z velocities
-        msg.yaw = self.get_current_yaw()
+        msg.yaw = yaw
         msg.timestamp = int(Clock().now().nanoseconds / 1000)
         self.trajectory_setpoint_publisher_.publish(msg)
 
