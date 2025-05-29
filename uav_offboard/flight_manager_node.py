@@ -62,7 +62,6 @@ class FlightManagerNode(Node):
             # Map fields from request to potential args
             request_args = {
                 'mode': request.mode,
-                'alt': request.param1,
                 'param1': request.param1,
                 'param2': request.param2,
                 'param3': request.param3,

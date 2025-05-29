@@ -110,7 +110,7 @@ class VehicleCommander:
         )
         self.node.get_logger().info('Flight termination command sent')
 
-    def takeoff(self, alt: float):
+    def takeoff(self, param1: float):
         """
         
         Take off to the specified MSL altitude.
@@ -119,6 +119,9 @@ class VehicleCommander:
             alt (float): The desired altitude in meters.
         
         """
+
+        alt = param1
+
         self.publish_vehicle_command(
             command=VehicleCommand.VEHICLE_CMD_NAV_TAKEOFF,
             param1=-1.0,
