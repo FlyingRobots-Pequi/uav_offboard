@@ -23,8 +23,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            # 'heartbeat_node = uav_offboard.heartbeat_node:main',
             'flight_manager_node = uav_offboard.flight_manager_node:main',
+            'uav_teleop_keyboard = scripts.uav_teleop_keyboard:main',
         ],
     },
 )
