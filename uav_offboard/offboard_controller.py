@@ -4,7 +4,7 @@ import math
 from rclpy.node import Node
 from rclpy.clock import Clock
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy, QoSDurabilityPolicy
-from px4_msgs.msg import OffboardControlMode, TrajectorySetpoint, GotoSetpoint
+from px4_msgs.msg import OffboardControlMode, TrajectorySetpoint
 
 class OffboardController():
     def __init__(self, node):
@@ -25,11 +25,6 @@ class OffboardController():
         self.trajectory_setpoint_publisher_ = self.node.create_publisher(
             TrajectorySetpoint,
             '/fmu/in/trajectory_setpoint',
-            qos_profile)
-        
-        self.goto_waypoint_publisher_ = self.node.create_publisher(
-            GotoSetpoint,
-            '/fmu/in/goto_waypoint',
             qos_profile)
         
 
@@ -74,7 +69,7 @@ class OffboardController():
         msg.timestamp = int(Clock().now().nanoseconds / 1000)
         self.trajectory_setpoint_publisher_.publish(msg)
         
-        self.node.get_logger().info(f"[PUB_POSITION_CONTROL_SETPOINT]Position control: Target position: ({target_x:.2f}, {target_y:.2f}, {target_z:.2f})")
+        # self.node.get_logger().info(f"[PUB_POSITION_CONTROL_SETPOINT]Position control: Target position: ({target_x:.2f}, {target_y:.2f}, {target_z:.2f})")
         
     def publish_velocity_control_setpoint(self, target_vx, target_vy, target_vz, yaw=0.0):
 
@@ -95,19 +90,4 @@ class OffboardController():
         msg.timestamp = int(Clock().now().nanoseconds / 1000)
         self.trajectory_setpoint_publisher_.publish(msg)
 
-        self.node.get_logger().info(f"[PUB_VELOCITY_CONTROL_SETPOINT]Velocity control: Target velocity: ({target_vx:.2f}, {target_vy:.2f}, {target_vz:.2f})")
-
-    def publish_goto_setpoint(self, target_x, target_y, target_z):
-        msg = GotoSetpoint()
-        msg.position = [target_x, target_y, target_z]
-        msg.heading = 0.0
-        msg.flag_set_max_horizontal_speed = True
-        msg.max_horizontal_speed = 5.0
-        msg.flag_set_max_vertical_speed = True
-        msg.max_vertical_speed = 5.0
-        msg.flag_set_max_heading_rate = True
-        msg.max_heading_rate = 5.0
-        msg.timestamp = int(Clock().now().nanoseconds / 1000)
-        self.goto_waypoint_publisher_.publish(msg)
-
-        # self.node.get_logger().info(f"[PUB_GOTO_SETPOINT] Goto setpoint: Target position: ({target_x:.2f}, {target_y:.2f}, {target_z:.2f})")
+        # self.node.get_logger().info(f"[PUB_VELOCITY_CONTROL_SETPOINT]Velocity control: Target velocity: ({target_vx:.2f}, {target_vy:.2f}, {target_vz:.2f})")

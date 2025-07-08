@@ -1,210 +1,488 @@
-from px4_msgs.msg import VehicleLocalPosition, VehicleOdometry, VehicleStatus, FailsafeFlags, VehicleCommandAck, OffboardControlMode, HomePosition, TakeoffStatus, VehicleLandDetected, BatteryStatus
+"""
+Optimized Vehicle Callback for PX4 UAV
+
+This module provides an optimized callback system for PX4 vehicle telemetry
+with thread-safe state management and efficient data processing.
+"""
+
+import threading
+from typing import Callable, List, Optional
+from px4_msgs.msg import (
+    VehicleLocalPosition, VehicleOdometry, VehicleStatus, FailsafeFlags,
+    VehicleCommandAck, OffboardControlMode, HomePosition, TakeoffStatus,
+    VehicleLandDetected, BatteryStatus
+)
 from rclpy.qos import qos_profile_sensor_data
-from ament_index_python.packages import get_package_share_directory
-import os
-import yaml
+
+from .vehicle_state import (
+    VehicleState, ArmingState, NavState, TakeoffState, BatteryWarning,
+    CommandResult, FailsafeFlag
+)
 
 class VehicleCallback:
-    def __init__(self, node):
+    """
+    Optimized callback system for PX4 vehicle telemetry.
+    
+    Features:
+    - Thread-safe state management
+    - Efficient data processing
+    - Event-driven notifications
+    - Minimal memory footprint
+    """
+    
+    def __init__(self, node, config):
         self.node = node
-        self.status_labels = self.load_yaml_file('uav_offboard', 'config/uav_status.yaml')
-
-        self.sub_local_position_ = self.node.create_subscription(
+        self.config = config
+        self._lock = threading.RLock()
+        self._state = VehicleState()
+        
+        # Event callbacks
+        self._position_change_callbacks: List[Callable] = []
+        self._state_change_callbacks: List[Callable] = []
+        self._critical_alert_callbacks: List[Callable] = []
+        
+        # Thresholds for notifications from config
+        self._position_threshold = config.position_threshold
+        self._velocity_threshold = config.velocity_threshold
+        
+        # Previous values for change detection
+        self._prev_position = (0.0, 0.0, 0.0)
+        self._prev_arming_state = ArmingState.DISARMED
+        self._prev_nav_state = NavState.MANUAL
+        self._prev_takeoff_state = TakeoffState.EMPTY
+        
+        self._create_subscriptions()
+        
+        self.node.get_logger().info("VehicleCallback initialized with optimized callbacks")
+    
+    def _create_subscriptions(self):
+        """Create all PX4 message subscriptions"""
+        
+        # Position and movement data
+        self.sub_local_position = self.node.create_subscription(
             VehicleLocalPosition,
             '/fmu/out/vehicle_local_position',
             self.cb_local_position,
             qos_profile_sensor_data
         )
-
-        self.sub_odometry_ = self.node.create_subscription(
+        
+        self.sub_odometry = self.node.create_subscription(
             VehicleOdometry,
             '/fmu/out/vehicle_odometry',
             self.cb_odometry,
             qos_profile_sensor_data
         )
-
-        self.sub_vehicle_status_ = self.node.create_subscription(
+        
+        # Vehicle status
+        self.sub_vehicle_status = self.node.create_subscription(
             VehicleStatus,
             '/fmu/out/vehicle_status',
             self.cb_vehicle_status,
             qos_profile_sensor_data
         )
-
-        self.sub_failsafe_flags_ = self.node.create_subscription(
+        
+        # Safety and failsafe
+        self.sub_failsafe_flags = self.node.create_subscription(
             FailsafeFlags,
             '/fmu/out/failsafe_flags',
             self.cb_failsafe_flags,
             qos_profile_sensor_data
         )
-
-        self.sub_vehicle_command_ack_ = self.node.create_subscription(
+        
+        # Command acknowledgments
+        self.sub_command_ack = self.node.create_subscription(
             VehicleCommandAck,
             '/fmu/out/vehicle_command_ack',
-            self.cb_vehicle_command_ack,
+            self.cb_command_ack,
             qos_profile_sensor_data
         )
-
-        self.sub_offboard_control_mode_ = self.node.create_subscription(
+        
+        # Control modes
+        self.sub_offboard_mode = self.node.create_subscription(
             OffboardControlMode,
             '/fmu/out/offboard_control_mode',
-            self.cb_offboard_control_mode,
+            self.cb_offboard_mode,
             qos_profile_sensor_data
         )
-
-        self.sub_home_position_ = self.node.create_subscription(
+        
+        # Home and takeoff
+        self.sub_home_position = self.node.create_subscription(
             HomePosition,
             '/fmu/out/home_position',
             self.cb_home_position,
             qos_profile_sensor_data
         )
-
-        self.sub_takeoff_status_ = self.node.create_subscription(
+        
+        self.sub_takeoff_status = self.node.create_subscription(
             TakeoffStatus,
             '/fmu/out/takeoff_status',
             self.cb_takeoff_status,
             qos_profile_sensor_data
         )
-
-        self.sub_land_detected_ = self.node.create_subscription(
+        
+        # Landing detection
+        self.sub_land_detected = self.node.create_subscription(
             VehicleLandDetected,
-            '/fmu/out/land_detected',
+            '/fmu/out/vehicle_land_detected',
             self.cb_land_detected,
             qos_profile_sensor_data
         )
-
-        self.sub_battery_status_ = self.node.create_subscription(
+        
+        # Battery status
+        self.sub_battery_status = self.node.create_subscription(
             BatteryStatus,
             '/fmu/out/battery_status',
             self.cb_battery_status,
             qos_profile_sensor_data
         )
-
+    
+    # ============================================================================
+    # PROPERTIES (Thread-safe access to state)
+    # ============================================================================
+    
+    @property
+    def current_position(self) -> tuple:
+        """Current position as (x, y, z) tuple"""
+        with self._lock:
+            return self._state.position
+    
+    @property
+    def current_velocity(self) -> tuple:
+        """Current velocity as (vx, vy, vz) tuple"""
+        with self._lock:
+            return self._state.velocity
+    
+    @property
+    def current_heading(self) -> float:
+        """Current heading in radians"""
+        with self._lock:
+            return self._state.heading
+    
+    @property
+    def arming_state(self) -> ArmingState:
+        """Current arming state"""
+        with self._lock:
+            return self._state.arming_state
+    
+    @property
+    def nav_state(self) -> NavState:
+        """Current navigation state"""
+        with self._lock:
+            return self._state.nav_state
+    
+    @property
+    def takeoff_state(self) -> TakeoffState:
+        """Current takeoff state"""
+        with self._lock:
+            return self._state.takeoff_state
+    
+    @property
+    def is_armed(self) -> bool:
+        """Check if vehicle is armed"""
+        with self._lock:
+            return self._state.arming_state == ArmingState.ARMED
+    
+    @property
+    def is_flying(self) -> bool:
+        """Check if vehicle is flying"""
+        with self._lock:
+            return self._state.is_flying
+    
+    @property
+    def is_ready_for_offboard(self) -> bool:
+        """Check if vehicle is ready for offboard control"""
+        with self._lock:
+            return self._state.is_ready_for_offboard
+    
+    @property
+    def is_landed(self) -> bool:
+        """Check if vehicle is landed"""
+        with self._lock:
+            return self._state.landed
+    
+    @property
+    def failsafe_active(self) -> bool:
+        """Check if failsafe is active"""
+        with self._lock:
+            return self._state.failsafe
+    
+    @property
+    def battery_level(self) -> float:
+        """Battery level as percentage (0-100)"""
+        with self._lock:
+            return self._state.battery_level_percent
+    
+    @property
+    def home_position(self) -> tuple:
+        """Home position as (x, y, z) tuple"""
+        with self._lock:
+            return (self._state.home_x, self._state.home_y, self._state.home_z)
+    
+    @property
+    def status_summary(self) -> str:
+        """Human-readable status summary"""
+        with self._lock:
+            return self._state.status_summary
+    
+    # ============================================================================
+    # CALLBACK REGISTRATION
+    # ============================================================================
+    
+    def add_position_change_callback(self, callback: Callable):
+        """Add callback for position changes"""
+        self._position_change_callbacks.append(callback)
+    
+    def add_state_change_callback(self, callback: Callable):
+        """Add callback for state changes"""
+        self._state_change_callbacks.append(callback)
+    
+    def add_critical_alert_callback(self, callback: Callable):
+        """Add callback for critical alerts"""
+        self._critical_alert_callbacks.append(callback)
+    
+    def remove_position_change_callback(self, callback: Callable):
+        """Remove position change callback"""
+        if callback in self._position_change_callbacks:
+            self._position_change_callbacks.remove(callback)
+    
+    def remove_state_change_callback(self, callback: Callable):
+        """Remove state change callback"""
+        if callback in self._state_change_callbacks:
+            self._state_change_callbacks.remove(callback)
+    
+    def remove_critical_alert_callback(self, callback: Callable):
+        """Remove critical alert callback"""
+        if callback in self._critical_alert_callbacks:
+            self._critical_alert_callbacks.remove(callback)
+    
+    # ============================================================================
+    # PX4 MESSAGE CALLBACKS
+    # ============================================================================
+    
     def cb_local_position(self, msg):
-        self.local_position = msg
-        self.current_x = msg.x
-        self.current_y = msg.y
-        self.current_z = msg.z
-        self.current_vx = msg.vx
-        self.current_vy = msg.vy
-        self.current_vz = msg.vz
-        self.current_ax = msg.ax
-        self.current_ay = msg.ay
-        self.current_az = msg.az
-        self.current_heading = msg.heading
-        # self.self.node.get_logger().info(f"[local_pos] x={msg.x:.2f}")
-
-    def cb_odometry(self, msg):
-        self.odometry = msg
+        """Local position callback"""
+        with self._lock:
+            # Update position
+            self._state.x = msg.x
+            self._state.y = msg.y
+            self._state.z = msg.z
+            self._state.heading = msg.heading
+            
+            # Update velocity
+            self._state.vx = msg.vx
+            self._state.vy = msg.vy
+            self._state.vz = msg.vz
+            
+            # Update acceleration
+            self._state.ax = msg.ax
+            self._state.ay = msg.ay
+            self._state.az = msg.az
+            
+            self._state.timestamp = msg.timestamp
         
-        self.position = msg.position
-        self.quaternion = msg.q
-
-        self.velocity = msg.velocity
-        self.angular_velocity = msg.angular_velocity
-
-        self.var_position = msg.position_variance
-        self.var_velocity = msg.velocity_variance
-        self.var_orientation = msg.orientation_variance
-
+        # Check for significant position change
+        current_pos = (msg.x, msg.y, msg.z)
+        if self._position_changed(current_pos, self._prev_position):
+            self._prev_position = current_pos
+            self._notify_position_change(current_pos)
+    
+    def cb_odometry(self, msg):
+        """Odometry callback - additional position and velocity data"""
+        # Note: This provides additional data that may be more accurate
+        # For now, we'll use local_position as primary source
+        pass
+    
     def cb_vehicle_status(self, msg):
-        self.vehicle_status = msg 
-        self.arming_state = msg.arming_state # uint8
-        self.latest_disarming_reason = msg.latest_disarming_reason # uint8
-        self.nav_state = msg.nav_state # uint8
-        self.failure_detector_status = msg.failure_detector_status # uint16
-        self.failsafe = msg.failsafe # bool
-        self.safety_off = msg.safety_off # bool
-        self.pre_flight_checks_pass = msg.pre_flight_checks_pass # bool
-
-        # code = msg.arming_state
-        # label = self.status_labels["vehicle_status"]["arming_state"].get(code, "Unknown")
-        # self.self.node.get_logger().info(f"[arming_state] Takeoff={code}: {label}")
-
+        """Vehicle status callback"""
+        state_changed = False
+        
+        with self._lock:
+            # Check for state changes
+            new_arming = ArmingState(msg.arming_state)
+            new_nav = NavState(msg.nav_state)
+            
+            if new_arming != self._prev_arming_state:
+                self._prev_arming_state = new_arming
+                self._state.arming_state = new_arming
+                self._state.armed = (new_arming == ArmingState.ARMED)
+                state_changed = True
+                self.node.get_logger().info(f"Arming state changed: {new_arming}")
+            
+            if new_nav != self._prev_nav_state:
+                self._prev_nav_state = new_nav
+                self._state.nav_state = new_nav
+                self._state.offboard_enabled = (new_nav == NavState.OFFBOARD)
+                state_changed = True
+                self.node.get_logger().info(f"Navigation state changed: {new_nav}")
+            
+            # Update other status fields
+            self._state.failsafe = msg.failsafe
+            
+            # Check for critical conditions
+            if msg.failsafe and not self._state.failsafe:
+                self._notify_critical_alert("Failsafe activated!")
+        
+        if state_changed:
+            self._notify_state_change()
+    
     def cb_failsafe_flags(self, msg):
-        self.failsafe_flags = msg
-        self.attitude_invalid = msg.attitude_invalid
-        self.local_altitude_invalid = msg.local_altitude_invalid
-        self.local_position_invalid = msg.local_position_invalid
-        self.local_position_invalid_relaxed = msg.local_position_invalid_relaxed
-        self.local_velocity_invalid = msg.local_velocity_invalid
-        self.global_position_invalid = msg.global_position_invalid
-        self.auto_mission_missing = msg.auto_mission_missing
-        self.offboard_control_signal_lost = msg.offboard_control_signal_lost
-        self.home_position_invalid = msg.home_position_invalid
-        self.manual_control_signal_lost = msg.manual_control_signal_lost
-        self.gcs_connection_lost = msg.gcs_connection_lost
-        self.battery_warning = msg.battery_warning
-        self.battery_low_remaining_time = msg.battery_low_remaining_time
-        self.mission_failure = msg.mission_failure
-        self.flight_time_limit_exceeded = msg.flight_time_limit_exceeded
-        self.local_position_accuracy_low = msg.local_position_accuracy_low
-        self.fd_critical_failure = msg.fd_critical_failure
-        self.fd_esc_arming_failure = msg.fd_esc_arming_failure
-        self.fd_imbalanced_prop = msg.fd_imbalanced_prop
-        self.fd_motor_failure = msg.fd_motor_failure
-
-    def cb_vehicle_command_ack(self, msg):
-        self.vehicle_command_ack = msg
-        self.command_ack = msg.command
-        self.result = msg.result
-        self.target_system = msg.target_system
-        self.target_component = msg.target_component
-        self.timestamp = msg.timestamp
-
-    def cb_offboard_control_mode(self, msg):
-        self.offboard_control_mode = msg
-        self.timestamp = msg.timestamp
-        self.position = msg.position
-        self.velocity = msg.velocity
-        self.acceleration = msg.acceleration
-        self.attitude = msg.attitude
-        self.body_rate = msg.body_rate
-        self.thrust_and_torque = msg.thrust_and_torque
-        self.direct_actuator = msg.direct_actuator
-
+        """Failsafe flags callback"""
+        critical_flags = []
+        
+        # Check for critical failsafe conditions
+        if msg.offboard_control_signal_lost:
+            critical_flags.append(FailsafeFlag.get_text("offboard_control_signal_lost", True))
+        if msg.battery_warning:
+            critical_flags.append(FailsafeFlag.get_text("battery_warning", True))
+        if msg.local_position_invalid:
+            critical_flags.append(FailsafeFlag.get_text("local_position_invalid", True))
+        if msg.fd_critical_failure:
+            critical_flags.append(FailsafeFlag.get_text("fd_critical_failure", True))
+        if msg.fd_motor_failure:
+            critical_flags.append(FailsafeFlag.get_text("fd_motor_failure", True))
+        if msg.fd_esc_arming_failure:
+            critical_flags.append(FailsafeFlag.get_text("fd_esc_arming_failure", True))
+        if msg.fd_imbalanced_prop:
+            critical_flags.append(FailsafeFlag.get_text("fd_imbalanced_prop", True))
+        if msg.gcs_connection_lost:
+            critical_flags.append(FailsafeFlag.get_text("gcs_connection_lost", True))
+        if msg.manual_control_signal_lost:
+            critical_flags.append(FailsafeFlag.get_text("manual_control_signal_lost", True))
+        if msg.home_position_invalid:
+            critical_flags.append(FailsafeFlag.get_text("home_position_invalid", True))
+        
+        # Notify critical alerts with descriptive messages
+        for flag in critical_flags:
+            self._notify_critical_alert(flag)
+    
+    def cb_command_ack(self, msg):
+        """Command acknowledgment callback"""
+        result = CommandResult(msg.result)
+        
+        if result != CommandResult.ACCEPTED:
+            self.node.get_logger().warn(f"Command {msg.command} result: {result}")
+        else:
+            self.node.get_logger().debug(f"Command {msg.command} accepted")
+    
+    def cb_offboard_mode(self, msg):
+        """Offboard control mode callback"""
+        with self._lock:
+            self._state.offboard_enabled = (msg.position or msg.velocity or 
+                                          msg.acceleration or msg.attitude)
+    
     def cb_home_position(self, msg):
-        self.home_position = msg
-        self.home_x = msg.x
-        self.home_y = msg.y
-        self.home_z = msg.z
-        self.home_yaw = msg.yaw
-
+        """Home position callback"""
+        with self._lock:
+            self._state.home_x = msg.x
+            self._state.home_y = msg.y
+            self._state.home_z = msg.z
+            self._state.home_yaw = msg.yaw
+        
+        self.node.get_logger().info(f"Home position set: ({msg.x:.1f}, {msg.y:.1f}, {msg.z:.1f})")
+    
     def cb_takeoff_status(self, msg):
-        self.takeoff_status = msg
-        self.takeoff_state = msg.takeoff_state
-
-        # code = msg.takeoff_state
-        # label = self.status_labels["takeoff_state"].get(code, "Unknown")
-        # self.self.node.get_logger().info(f"[takeoff_state] Takeoff={code}: {label}")
-
-
+        """Takeoff status callback"""
+        with self._lock:
+            new_takeoff_state = TakeoffState(msg.takeoff_state)
+            
+            if new_takeoff_state != self._prev_takeoff_state:
+                self._prev_takeoff_state = new_takeoff_state
+                self._state.takeoff_state = new_takeoff_state
+                self.node.get_logger().info(f"Takeoff state changed: {new_takeoff_state}")
+                self._notify_state_change()
+    
     def cb_land_detected(self, msg):
-        self.land_detected = msg
-        self.freefall = msg.freefall
-        self.ground_contact = msg.ground_contact
-        self.maybe_landed = msg.maybe_landed
-        self.landed = msg.landed
-        self.in_ground_effect = msg.in_ground_effect
-        self.in_descend = msg.in_descend
-        self.has_low_throttle = msg.has_low_throttle
-        self.vertical_movement = msg.vertical_movement
-        self.horizontal_movement = msg.horizontal_movement
-        self.rotational_movement = msg.rotational_movement
-        self.close_to_ground_or_skipped_check = msg.close_to_ground_or_skipped_check
-        self.at_rest = msg.at_rest
-
+        """Land detection callback"""
+        prev_landed = None
+        
+        # Debug: sempre loga recebimento do tópico
+        self.node.get_logger().debug(f"Land detected msg: landed={msg.landed}, ground_contact={msg.ground_contact}, freefall={msg.freefall}")
+        
+        with self._lock:
+            prev_landed = self._state.landed
+            self._state.landed = msg.landed
+            
+            if prev_landed != msg.landed:
+                status_text = FailsafeFlag.get_text("landed", msg.landed)
+                self.node.get_logger().info(f"LAND STATUS CHANGED: {status_text}")
+                self._notify_state_change()
+        
+        # Check for other critical conditions (outside lock)
+        if msg.freefall:
+            self._notify_critical_alert(FailsafeFlag.get_text("freefall", True))
+        if msg.ground_contact and not prev_landed:
+            self.node.get_logger().info(FailsafeFlag.get_text("ground_contact", True))
+    
     def cb_battery_status(self, msg):
-        self.battery_status = msg
-        self.connected = msg.connected
-        self.voltage_v = msg.voltage_v
-        self.current_a = msg.current_a
-        self.remaining = msg.remaining
-        self.temperature = msg.temperature
-        self.cell_count = msg.cell_count
-
-    def load_yaml_file(self, package: str, relative_path: str):
-
-        base = get_package_share_directory(package)
-        full_path = os.path.join(base, relative_path)
-        with open(full_path, 'r') as f:
-            return yaml.safe_load(f)
+        """Battery status callback"""
+        with self._lock:
+            self._state.battery_voltage = msg.voltage_v
+            self._state.battery_current = msg.current_a
+            self._state.battery_remaining = msg.remaining
+            self._state.battery_warning = BatteryWarning(msg.warning)
+        
+        # Check for battery warnings
+        if msg.warning > BatteryWarning.NONE:
+            warning_text = BatteryWarning(msg.warning)
+            self._notify_critical_alert(f"Battery warning: {warning_text}")
+    
+    # ============================================================================
+    # HELPER METHODS
+    # ============================================================================
+    
+    def _position_changed(self, current: tuple, previous: tuple) -> bool:
+        """Check if position changed significantly"""
+        return (abs(current[0] - previous[0]) > self._position_threshold or
+                abs(current[1] - previous[1]) > self._position_threshold or
+                abs(current[2] - previous[2]) > self._position_threshold)
+    
+    def _notify_position_change(self, position: tuple):
+        """Notify position change callbacks"""
+        for callback in self._position_change_callbacks:
+            try:
+                callback(position)
+            except Exception as e:
+                # self.node.get_logger().error(f"Error in position callback: {e}")
+                pass
+    
+    def _notify_state_change(self):
+        """Notify state change callbacks"""
+        for callback in self._state_change_callbacks:
+            try:
+                callback(self._state)
+            except Exception as e:
+                # self.node.get_logger().error(f"Error in state callback: {e}")
+                pass
+    
+    def _notify_critical_alert(self, message: str):
+        """Notify critical alert callbacks"""
+        # self.node.get_logger().error(f"CRITICAL ALERT: {message}")
+        for callback in self._critical_alert_callbacks:
+            try:
+                callback(message)
+            except Exception as e:
+                # self.node.get_logger().error(f"Error in critical alert callback: {e}")
+                pass
+    
+    def get_state_snapshot(self) -> VehicleState:
+        """Get a copy of the current state (thread-safe)"""
+        with self._lock:
+            # Create a copy of the state
+            import copy
+            return copy.deepcopy(self._state)
+    
+    def is_position_reached(self, target_x: float, target_y: float, target_z: float, 
+                           tolerance: float = 0.5) -> bool:
+        """Check if target position is reached within tolerance"""
+        with self._lock:
+            return (abs(self._state.x - target_x) < tolerance and
+                    abs(self._state.y - target_y) < tolerance and
+                    abs(self._state.z - target_z) < tolerance)
+    
+    def get_distance_to_home(self) -> float:
+        """Get distance to home position"""
+        with self._lock:
+            dx = self._state.x - self._state.home_x
+            dy = self._state.y - self._state.home_y
+            dz = self._state.z - self._state.home_z
+            return (dx*dx + dy*dy + dz*dz) ** 0.5

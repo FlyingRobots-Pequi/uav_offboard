@@ -1,0 +1,37 @@
+flight_manager_node:
+  ros__parameters:
+    # Navigation Parameters
+    navigation:
+      position_tolerance: 0.2        # metros - tolerância para chegada em posição
+      takeoff_climb_rate: 0.5       # m/s - taxa de subida durante takeoff
+      hold_duration: 2.0            # segundos - tempo de hold na posição
+      default_takeoff_altitude: 3.0 # metros - altitude padrão de takeoff
+      
+    # Control Parameters  
+    control:
+      setpoint_mode: "position"     # "position" ou "velocity"
+      heartbeat_frequency: 10.0     # Hz - frequência do heartbeat offboard
+      navigation_frequency: 10.0    # Hz - frequência do loop de navegação
+      status_frequency: 5.0         # Hz - frequência de monitoramento
+      
+    # Callback Parameters
+    callbacks:
+      position_threshold: 0.1       # metros - limiar para mudança de posição
+      velocity_threshold: 0.1       # m/s - limiar para mudança de velocidade
+      
+    # Mission Parameters
+    mission:
+      command_delay: 0.05          # segundos - delay entre comandos
+      command_timeout: 30.0        # segundos - timeout para comandos
+      
+    # Safety Parameters
+    safety:
+      max_altitude: 10.0           # metros - altitude máxima
+      max_velocity: 5.0            # m/s - velocidade máxima
+      emergency_land_battery: 0.15 # porcentagem - bateria mínima para pouso
+      
+    # Logging Parameters
+    logging:
+      debug_navigation: false      # log detalhado de navegação
+      debug_callbacks: false       # log detalhado de callbacks
+      debug_mission: true          # log detalhado de missão 
