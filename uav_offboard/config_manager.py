@@ -16,6 +16,7 @@ class NavigationConfig:
     takeoff_climb_rate: float = 0.5
     hold_duration: float = 2.0
     default_takeoff_altitude: float = 3.0
+    altitude_threshold: float = 0.75  # Limiar para navegação gradual de altitude
 
 
 @dataclass
@@ -98,7 +99,8 @@ class ConfigManager:
             position_tolerance=self.node.get_parameter('navigation.position_tolerance').value,
             takeoff_climb_rate=self.node.get_parameter('navigation.takeoff_climb_rate').value,
             hold_duration=self.node.get_parameter('navigation.hold_duration').value,
-            default_takeoff_altitude=self.node.get_parameter('navigation.default_takeoff_altitude').value
+            default_takeoff_altitude=self.node.get_parameter('navigation.default_takeoff_altitude').value,
+            altitude_threshold=self.node.get_parameter('navigation.altitude_threshold').value
         )
         
         # Load control parameters
@@ -152,6 +154,7 @@ class ConfigManager:
         self.node.declare_parameter('navigation.takeoff_climb_rate', 0.5)
         self.node.declare_parameter('navigation.hold_duration', 2.0)
         self.node.declare_parameter('navigation.default_takeoff_altitude', 3.0)
+        self.node.declare_parameter('navigation.altitude_threshold', 0.75)
         
         # Control parameters
         self.node.declare_parameter('control.setpoint_mode', "velocity")

@@ -6,6 +6,7 @@ flight_manager_node:
       takeoff_climb_rate: 0.5       # m/s - taxa de subida durante takeoff
       hold_duration: 2.0            # segundos - tempo de hold na posição
       default_takeoff_altitude: 3.0 # metros - altitude padrão de takeoff
+      altitude_threshold: 0.75      # metros - limiar para navegação gradual de altitude
       
     # Control Parameters  
     control:
