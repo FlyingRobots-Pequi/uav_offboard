@@ -9,10 +9,12 @@ class VehicleCommander:
 
     Args:
         node (Node): The ROS2 node instance.
+        uav_namespace (str): Namespace prefix for UAV topics (e.g., "/pequi/hermit" or "").
     """
 
-    def __init__(self, node):
+    def __init__(self, node, uav_namespace=""):
         self.node = node
+        self.uav_namespace = uav_namespace
         
         qos_profile = QoSProfile(
             reliability=QoSReliabilityPolicy.RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT,
@@ -21,10 +23,19 @@ class VehicleCommander:
             depth=1
         )
 
+        # Build topic name with namespace
+        topic_name = self._build_uav_topic('/fmu/in/vehicle_command')
+        
         self.vehicle_command_publisher_ = self.node.create_publisher(
             VehicleCommand,
-            '/fmu/in/vehicle_command',
+            topic_name,
             qos_profile)
+
+    def _build_uav_topic(self, topic):
+        """Build complete topic name with namespace prefix."""
+        if self.uav_namespace:
+            return f"{self.uav_namespace}{topic}"
+        return topic
 
 
     def publish_vehicle_command(self, command, **params) -> None:

@@ -30,9 +30,10 @@ class VehicleCallback:
     - Minimal memory footprint
     """
     
-    def __init__(self, node, config):
+    def __init__(self, node, config, uav_namespace=""):
         self.node = node
         self.config = config
+        self.uav_namespace = uav_namespace
         self._lock = threading.RLock()
         self._state = VehicleState()
         
@@ -54,6 +55,12 @@ class VehicleCallback:
         self._create_subscriptions()
         
         self.node.get_logger().info("VehicleCallback initialized with optimized callbacks")
+
+    def _build_uav_topic(self, topic):
+        """Build complete topic name with namespace prefix."""
+        if self.uav_namespace:
+            return f"{self.uav_namespace}{topic}"
+        return topic
     
     def _create_subscriptions(self):
         """Create all PX4 message subscriptions"""
@@ -61,14 +68,14 @@ class VehicleCallback:
         # Position and movement data
         self.sub_local_position = self.node.create_subscription(
             VehicleLocalPosition,
-            '/fmu/out/vehicle_local_position',
+            self._build_uav_topic('/fmu/out/vehicle_local_position'),
             self.cb_local_position,
             qos_profile_sensor_data
         )
         
         self.sub_odometry = self.node.create_subscription(
             VehicleOdometry,
-            '/fmu/out/vehicle_odometry',
+            self._build_uav_topic('/fmu/out/vehicle_odometry'),
             self.cb_odometry,
             qos_profile_sensor_data
         )
@@ -76,7 +83,7 @@ class VehicleCallback:
         # Vehicle status
         self.sub_vehicle_status = self.node.create_subscription(
             VehicleStatus,
-            '/fmu/out/vehicle_status',
+            self._build_uav_topic('/fmu/out/vehicle_status'),
             self.cb_vehicle_status,
             qos_profile_sensor_data
         )
@@ -84,7 +91,7 @@ class VehicleCallback:
         # Safety and failsafe
         self.sub_failsafe_flags = self.node.create_subscription(
             FailsafeFlags,
-            '/fmu/out/failsafe_flags',
+            self._build_uav_topic('/fmu/out/failsafe_flags'),
             self.cb_failsafe_flags,
             qos_profile_sensor_data
         )
@@ -92,7 +99,7 @@ class VehicleCallback:
         # Command acknowledgments
         self.sub_command_ack = self.node.create_subscription(
             VehicleCommandAck,
-            '/fmu/out/vehicle_command_ack',
+            self._build_uav_topic('/fmu/out/vehicle_command_ack'),
             self.cb_command_ack,
             qos_profile_sensor_data
         )
@@ -100,7 +107,7 @@ class VehicleCallback:
         # Control modes
         self.sub_offboard_mode = self.node.create_subscription(
             OffboardControlMode,
-            '/fmu/out/offboard_control_mode',
+            self._build_uav_topic('/fmu/out/offboard_control_mode'),
             self.cb_offboard_mode,
             qos_profile_sensor_data
         )
@@ -108,14 +115,14 @@ class VehicleCallback:
         # Home and takeoff
         self.sub_home_position = self.node.create_subscription(
             HomePosition,
-            '/fmu/out/home_position',
+            self._build_uav_topic('/fmu/out/home_position'),
             self.cb_home_position,
             qos_profile_sensor_data
         )
         
         self.sub_takeoff_status = self.node.create_subscription(
             TakeoffStatus,
-            '/fmu/out/takeoff_status',
+            self._build_uav_topic('/fmu/out/takeoff_status'),
             self.cb_takeoff_status,
             qos_profile_sensor_data
         )
@@ -123,7 +130,7 @@ class VehicleCallback:
         # Landing detection
         self.sub_land_detected = self.node.create_subscription(
             VehicleLandDetected,
-            '/fmu/out/vehicle_land_detected',
+            self._build_uav_topic('/fmu/out/vehicle_land_detected'),
             self.cb_land_detected,
             qos_profile_sensor_data
         )
@@ -131,7 +138,7 @@ class VehicleCallback:
         # Battery status
         self.sub_battery_status = self.node.create_subscription(
             BatteryStatus,
-            '/fmu/out/battery_status',
+            self._build_uav_topic('/fmu/out/battery_status'),
             self.cb_battery_status,
             qos_profile_sensor_data
         )

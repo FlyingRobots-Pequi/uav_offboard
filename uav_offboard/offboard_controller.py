@@ -7,8 +7,10 @@ from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy, QoSDur
 from px4_msgs.msg import OffboardControlMode, TrajectorySetpoint
 
 class OffboardController():
-    def __init__(self, node):
+    def __init__(self, node, uav_namespace=""):
         self.node = node
+        self.uav_namespace = uav_namespace
+        
         qos_profile = QoSProfile(
             reliability=QoSReliabilityPolicy.RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT,
             durability=QoSDurabilityPolicy.RMW_QOS_POLICY_DURABILITY_TRANSIENT_LOCAL,
@@ -16,16 +18,26 @@ class OffboardController():
             depth=1
         )
         
+        # Build topic names with namespace
+        offboard_topic = self._build_uav_topic('/fmu/in/offboard_control_mode')
+        setpoint_topic = self._build_uav_topic('/fmu/in/trajectory_setpoint')
+        
         # Create publishers
         self.offboard_control_mode_publisher_ = self.node.create_publisher(
             OffboardControlMode,
-            '/fmu/in/offboard_control_mode',
+            offboard_topic,
             qos_profile)
         
         self.trajectory_setpoint_publisher_ = self.node.create_publisher(
             TrajectorySetpoint,
-            '/fmu/in/trajectory_setpoint',
+            setpoint_topic,
             qos_profile)
+
+    def _build_uav_topic(self, topic):
+        """Build complete topic name with namespace prefix."""
+        if self.uav_namespace:
+            return f"{self.uav_namespace}{topic}"
+        return topic
         
 
     def publish_offboard_control_heartbeat_signal(self, position_control, velocity_control):

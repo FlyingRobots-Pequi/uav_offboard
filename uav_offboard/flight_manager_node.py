@@ -24,6 +24,15 @@ class FlightManagerNode(Node):
     def __init__(self):
         super().__init__('flight_manager_node')
         self.get_logger().info('FlightManagerNode initialized')
+        
+        # Declare and get FMU namespace parameter
+        self.declare_parameter('uav_namespace', '')
+        self.uav_namespace = self.get_parameter('uav_namespace').value
+        
+        if self.uav_namespace:
+            self.get_logger().info(f'Using UAV namespace: {self.uav_namespace}')
+        else:
+            self.get_logger().info('Using default UAV namespace (no prefix)')
 
         # Load configuration
         self.config_manager = ConfigManager(self)
@@ -33,9 +42,9 @@ class FlightManagerNode(Node):
         if not self.config_manager.validate_config():
             self.get_logger().error("Invalid configuration detected. Using defaults.")
         
-        self.vehicle_commander = VehicleCommander(self)
-        self.vehicle_callback = VehicleCallback(self, self.config.callbacks)
-        self.offboard_controller = OffboardController(self)
+        self.vehicle_commander = VehicleCommander(self, self.uav_namespace)
+        self.vehicle_callback = VehicleCallback(self, self.config.callbacks, self.uav_namespace)
+        self.offboard_controller = OffboardController(self, self.uav_namespace)
         self.navigation_manager = NavigationManager(self.vehicle_callback, self.offboard_controller, self.config.navigation)
 
         self.vehicle_commander_srv = self.create_service(VehicleCommanderService, 'vehicle_commander', self.vehicle_commander_service_callback)
@@ -62,26 +71,30 @@ class FlightManagerNode(Node):
         self.mission_start_time = None
 
         # UAV Status publisher - publishes vehicle state information
+        uav_status_topic = self._build_uav_topic('/uav_status')
         self.uav_status_pub = self.create_publisher(
             UavStatus,
-            '/uav_status',
+            uav_status_topic,
             10
         )
         
         # Subscriber para comandos de missão
+        mission_cmd_topic = self._build_uav_topic('/mission_cmd')
         self.mission_cmd_sub = self.create_subscription(
             MissionCommand,
-            '/mission_cmd',
+            mission_cmd_topic,
             self.mission_command_callback,
             10
         )
 
         # Publisher para status da missão
+        mission_state_topic = self._build_uav_topic('/mission_state')
         self.mission_status_pub = self.create_publisher(
             MissionState,
-            '/mission_state',
+            mission_state_topic,
             10
         )
+        
         # Setup vehicle callback event handlers
         self._setup_vehicle_callbacks()
         
@@ -94,6 +107,11 @@ class FlightManagerNode(Node):
         
         self.get_logger().info('FlightManagerNode setup complete with integrated navigation functions')
 
+    def _build_uav_topic(self, topic):
+        """Build complete topic name with namespace prefix."""
+        if self.uav_namespace:
+            return f"{self.uav_namespace}{topic}"
+        return topic
 
     def _setup_vehicle_callbacks(self):
         """Setup event callbacks for vehicle state changes"""
