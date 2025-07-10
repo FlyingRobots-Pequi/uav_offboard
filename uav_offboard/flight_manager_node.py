@@ -374,6 +374,19 @@ class FlightManagerNode(Node):
                 self.vehicle_commander.disarm()
                 return True
                 
+            # NOVOS COMANDOS CUSTOMIZADOS PARA BASE DETECTION
+            elif command == "PASSEAR_ARENA":
+                # Comando especial - inicia passeio pela arena
+                # A lógica de passeio é gerenciada pelo mission_node
+                # Este comando retorna SUCCESS imediatamente
+                return True
+                
+            elif command == "VISIT_DETECTED_BASES":
+                # Comando especial - inicia visitação de bases
+                # A lógica de visitação é gerenciada pelo mission_node
+                # Este comando retorna SUCCESS imediatamente
+                return True
+                           
             else:
                 self.get_logger().error(f"Comando desconhecido: {command}")
                 return False
@@ -444,6 +457,31 @@ class FlightManagerNode(Node):
             if not vehicle_state.armed:
                 self.mission_status = "SUCCESS"
                 self.publish_mission_status("SUCCESS", "Drone desarmado")
+                
+        # MONITORAMENTO DOS COMANDOS CUSTOMIZADOS
+        elif command == "PASSEAR_ARENA":
+            # Comando especial - SUCCESS imediato
+            # A lógica real de passeio é no mission_node
+            self.mission_status = "SUCCESS"
+            self.publish_mission_status("SUCCESS", "Iniciando passeio pela arena")
+            
+        elif command == "WAIT_FOR_BASES":
+            # Comando especial - SUCCESS imediato
+            # A lógica real de espera é no mission_node
+            self.mission_status = "SUCCESS"
+            self.publish_mission_status("SUCCESS", "Aguardando detecção de bases")
+            
+        elif command == "VISIT_DETECTED_BASES":
+            # Comando especial - SUCCESS imediato
+            # A lógica real de visitação é no mission_node
+            self.mission_status = "SUCCESS"
+            self.publish_mission_status("SUCCESS", "Iniciando visitação de bases")
+            
+        elif command == "FINAL_LAND":
+            # Comando contínuo - igual ao LAND
+            if vehicle_state.landed:
+                self.mission_status = "SUCCESS"
+                self.publish_mission_status("SUCCESS", "Pouso final completo")
 
 def main(args=None):
     rclpy.init(args=args)
