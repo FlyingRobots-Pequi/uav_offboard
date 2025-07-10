@@ -225,6 +225,10 @@ class VehicleState:
     ay: float = 0.0
     az: float = 0.0
     
+    # Useful VehicleLocalPosition fields - Simplified
+    dist_bottom: float = 0.0
+    dist_bottom_valid: bool = False
+    
     # Vehicle states
     arming_state: ArmingState = ArmingState.DISARMED
     nav_state: NavState = NavState.MANUAL

@@ -285,6 +285,11 @@ class VehicleCallback:
             self._state.ay = msg.ay
             self._state.az = msg.az
             
+            # Update useful fields from VehicleLocalPosition
+            self._state.dist_bottom = msg.dist_bottom
+            self._state.dist_bottom_valid = msg.dist_bottom_valid
+
+            
             self._state.timestamp = msg.timestamp
         
         # Check for significant position change
