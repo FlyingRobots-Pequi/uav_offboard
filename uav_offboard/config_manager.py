@@ -26,6 +26,7 @@ class ControlConfig:
     heartbeat_frequency: float = 10.0
     navigation_frequency: float = 10.0
     status_frequency: float = 5.0
+    realtime_status: bool = True
 
 
 @dataclass
@@ -108,7 +109,8 @@ class ConfigManager:
             setpoint_mode=self.node.get_parameter('control.setpoint_mode').value,
             heartbeat_frequency=self.node.get_parameter('control.heartbeat_frequency').value,
             navigation_frequency=self.node.get_parameter('control.navigation_frequency').value,
-            status_frequency=self.node.get_parameter('control.status_frequency').value
+            status_frequency=self.node.get_parameter('control.status_frequency').value,
+            realtime_status=self.node.get_parameter('control.realtime_status').value
         )
         
         # Load callback parameters
@@ -161,6 +163,7 @@ class ConfigManager:
         self.node.declare_parameter('control.heartbeat_frequency', 10.0)
         self.node.declare_parameter('control.navigation_frequency', 10.0)
         self.node.declare_parameter('control.status_frequency', 5.0)
+        self.node.declare_parameter('control.realtime_status', True)
         
         # Callback parameters
         self.node.declare_parameter('callbacks.position_threshold', 0.1)

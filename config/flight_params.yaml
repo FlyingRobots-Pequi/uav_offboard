@@ -13,7 +13,8 @@ flight_manager_node:
       setpoint_mode: "position"     # "position" ou "velocity"
       heartbeat_frequency: 10.0     # Hz - frequência do heartbeat offboard
       navigation_frequency: 10.0    # Hz - frequência do loop de navegação
-      status_frequency: 5.0         # Hz - frequência de monitoramento
+      status_frequency: 90.0       # Hz - frequência de monitoramento (aumentada para tempo real)
+      realtime_status: true         # Publicar status em tempo real a cada atualização do VehicleLocalPosition
       
     # Callback Parameters
     callbacks:
