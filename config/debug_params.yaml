@@ -1,0 +1,41 @@
+flight_manager_node:
+  ros__parameters:
+    # Debug Configuration - Para testes e desenvolvimento
+    
+    # Navigation Parameters - Mais conservador para debug
+    navigation:
+      position_tolerance: 0.1        # Mais preciso
+      takeoff_climb_rate: 0.3       # Mais lento para observar
+      hold_duration: 3.0            # Mais tempo para análise
+      default_takeoff_altitude: 2.0 # Altitude baixa para segurança
+      altitude_threshold: 0.5       # Menor limiar para testar navegação gradual
+      
+    # Control Parameters - Frequências maiores para debug
+    control:
+      setpoint_mode: "position"     # Mais estável para debug
+      heartbeat_frequency: 20.0     # Maior freq para análise
+      navigation_frequency: 20.0    # Maior resolução
+      status_frequency: 50.0        # Muito mais updates de status para debug
+      realtime_status: true         # Publicar status em tempo real
+      
+    # Callback Parameters - Thresholds menores para detecção
+    callbacks:
+      position_threshold: 0.05      # Mais sensível
+      velocity_threshold: 0.05      # Mais sensível
+      
+    # Mission Parameters
+    mission:
+      command_delay: 0.1           # Mais delay para observar
+      command_timeout: 60.0        # Mais tempo para debug
+      
+    # Safety Parameters - Limites conservadores
+    safety:
+      max_altitude: 5.0            # Baixo para segurança
+      max_velocity: 2.0            # Lento para controle
+      emergency_land_battery: 0.2  # Mais conservador
+      
+    # Logging Parameters - Debug habilitado
+    logging:
+      debug_navigation: true       # Log detalhado
+      debug_callbacks: true        # Log detalhado
+      debug_mission: true          # Log detalhado 
